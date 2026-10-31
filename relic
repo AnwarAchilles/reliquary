@@ -1,0 +1,414 @@
+#!/usr/bin/env php
+<?php
+/*
+ * RELIQUARY · RELIC ✦
+ * The relics of this reliquary: relic.json
+ *
+ * A reliquary keeps no relic — it only remembers where each one rests
+ * (a tag, or a commit of main) and the seal (sha256) it had when it was listed.
+ *
+ * Run this script using:
+ *   $ php relic
+ *   $ php relic initiate [--user=<username>] [--yes]
+ *   $ php relic register [--repo=<repo>/<runite>] [--tag=<tag>] [--note=...]
+ *   $ php relic upgrade  [--repo=<repo>] [--tag=<tag>]
+ * Every question can be answered with its spell instead (e.g. for GitHub Actions).
+ *
+ * relic.json:
+ *   { "main": "<owner>/<repo>", "list": { "<owner>/<repo>": {
+ *       "repo", "runite", "note", "tags": { "<version>": { "url", "sha256", "rune", "ref" } } } } }
+ *
+ * Spells for tests (point them at a fake GitHub):
+ *   --api=<url>   the GitHub API   (default https://api.github.com)
+ *   --raw=<url>   raw files        (default https://raw.githubusercontent.com)
+ * A GITHUB_TOKEN environment variable is sent to the API when it is set.
+ */
+require_once __DIR__ . '/vendor/autoload.php';
+
+
+
+/**
+ * I N V O C A T I O N
+ *
+ * Step 1 — Summon the runes:
+ * Import each module's manifest.
+ *
+ * Step 2 — Channel the energy:
+ * Initialize ether, essence, and entity.
+ *
+ * Note: Keep #sentinel markers if you're using Sentinel support.
+ */
+use Rune\Aether\Manifest as Aether;
+use Rune\Whisper\Manifest as Whisper;
+use Rune\Weaver\Manifest as Weaver;
+use Rune\Chanter\Manifest as Chanter;
+use Rune\Forger\Manifest as Forger;
+#sentinel-manifest
+
+Aether::ether()::essence()::entity();
+Whisper::ether()::essence()::entity();
+Weaver::ether()::essence()::entity();
+Chanter::ether()::essence()::entity();
+Forger::ether()::essence()::entity();
+#sentinel-awaken
+
+
+
+/**
+ * R E L I C
+ *
+ * The logic of this runite. It stands alone: nexus has its own.
+ */
+
+const RELIC_BRANCH = 'main';  // where a version comes from when no tag is given
+const RELIC_FIRST = '0.1.0';  // the first version taken from main
+
+// a spell with a value, or its default (a spell without a value is '1')
+function relic_spell( String $key, String $default = '' ) {
+  $value = Chanter::spell($key);
+  return ($value === false || $value === '' || $value === '1') ? $default : trim((string) $value);
+}
+
+// the answer of a spell, or ask for it (--tag=1 is a tag too, so $one keeps '1')
+function relic_ask( String $key, String $question, Bool $one = false ) {
+  $value = Chanter::spell($key);
+  if ($value !== false && $value !== '' && ($one || $value !== '1')) {
+    return trim((string) $value);
+  }
+  return trim((string) Whisper::call("$question "));
+}
+
+function relic_api() { return rtrim(relic_spell('api', 'https://api.github.com'), '/'); }
+function relic_raw() { return rtrim(relic_spell('raw', 'https://raw.githubusercontent.com'), '/'); }
+
+function relic_line( String $state, String $text ) {
+  $color = ['ok'=> 'SUCCESS', 'warn'=> 'WARNING', 'fail'=> 'DANGER', 'info'=> 'SECONDARY'][$state];
+  $icon = ['ok'=> 'SUCCESS', 'warn'=> 'WARNING', 'fail'=> 'DANGER', 'info'=> 'INFO'][$state];
+  Whisper::echo("{{COLOR-$color}}{{ICON-$icon}}{{COLOR-END}} $text{{nl}}");
+}
+
+// the name of the project folder: the repo of this reliquary
+function relic_folder() {
+  $parts = preg_split('#[\\\\/]#', rtrim(AETHER_REPO, '\\/'));
+  return end($parts);
+}
+
+function relic_load() {
+  $data = json_decode((string) Forger::item(AETHER_REPO . '/relic.json'), true);
+  return is_array($data) ? $data : null;
+}
+
+function relic_save( Array $record ) {
+  $record['list'] = $record['list'] ?: new stdClass;
+  $json = json_encode($record, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
+  $json = preg_replace_callback('/^( +)/m', fn($match) => str_repeat(' ', strlen($match[1]) / 2), $json); // 2 spaces
+  return Forger::item(AETHER_REPO . '/relic.json', str_replace("\n", "\r\n", $json) . "\r\n");
+}
+
+// this reliquary: relic.json with its "main", or a hint to run initiate
+function relic_self() {
+  $record = relic_load();
+  if (!$record || !preg_match('#^[^/]+/[^/]+$#', (string) ($record['main'] ?? ''))) {
+    relic_line('warn', 'relic.json has no "main", run: php relic initiate');
+    return null;
+  }
+  $record['list'] = is_array($record['list'] ?? null) ? $record['list'] : [];
+  return $record;
+}
+
+// the key of a listed relic (any case), or null
+function relic_key( Array $list, String $name ) {
+  foreach (array_keys($list) as $key) {
+    if (strcasecmp($key, $name) === 0) {
+      return $key;
+    }
+  }
+  return null;
+}
+
+// GET a url: [status, body]; status 0 = can not be reached
+function relic_fetch( String $url, Bool $api = false ) {
+  $headers = ['User-Agent: rune-reliquary'];
+  if ($api) {
+    $headers[] = 'Accept: application/vnd.github+json';
+    if (getenv('GITHUB_TOKEN')) {
+      $headers[] = 'Authorization: Bearer ' . getenv('GITHUB_TOKEN');
+    }
+  }
+  if (function_exists('curl_init')) {
+    $curl = curl_init($url);
+    curl_setopt_array($curl, [
+      CURLOPT_RETURNTRANSFER=> true,
+      CURLOPT_FOLLOWLOCATION=> true,
+      CURLOPT_TIMEOUT=> 30,
+      CURLOPT_HTTPHEADER=> $headers,
+    ]);
+    $body = curl_exec($curl);
+    $status = (int) curl_getinfo($curl, CURLINFO_RESPONSE_CODE);
+    curl_close($curl);
+    return [$body === false ? 0 : $status, $body === false ? '' : $body];
+  }
+  if (ini_get('allow_url_fopen')) {
+    $context = stream_context_create(['http'=> [
+      'timeout'=> 30,
+      'header'=> implode("\r\n", $headers),
+      'follow_location'=> 1,
+      'ignore_errors'=> true,
+    ]]);
+    $body = @file_get_contents($url, false, $context);
+    $status = 0;
+    foreach ($http_response_header ?? [] as $line) {
+      if (preg_match('#^HTTP/\S+\s+(\d{3})#', $line, $match)) {
+        $status = (int) $match[1]; // the last status wins (after redirects)
+      }
+    }
+    return [$body === false ? 0 : $status, $body === false ? '' : $body];
+  }
+  relic_line('fail', 'PHP can not go online: enable curl (or allow_url_fopen) in php.ini');
+  return [0, ''];
+}
+
+/* Where a version rests: a tag, or the last commit of main.
+ * A version taken from main points to its commit, so the seal never breaks
+ * when main moves on. Returns [ref, ref for the record] or a problem string. */
+function relic_ref( String $name, String $tag ) {
+  if ($tag !== '') {
+    if (in_array(strtolower($tag), ['main', 'master'])) {
+      return "'$tag' is a branch, not a tag: leave it empty to take main";
+    }
+    return [$tag, $tag];
+  }
+  list($status, $body) = relic_fetch(relic_api() . "/repos/$name/commits/" . RELIC_BRANCH, true);
+  $sha = $status === 200 ? (json_decode($body, true)['sha'] ?? '') : '';
+  if (!preg_match('#^[0-9a-f]{40}$#', $sha)) {
+    return "the last commit of $name@" . RELIC_BRANCH . " can not be read (HTTP $status)";
+  }
+  return [$sha, RELIC_BRANCH . '@' . substr($sha, 0, 7)];
+}
+
+// download a .rune: [url, sha256, rune version] or a problem string
+function relic_take( String $name, String $runite, String $ref ) {
+  $url = relic_raw() . "/$name/$ref/$runite.rune";
+  list($status, $body) = relic_fetch($url);
+  if ($status !== 200) {
+    return "$url can not be fetched (HTTP $status)";
+  }
+  if (strpos($body, '[ᚱᚾ]') === false) {
+    return "$url is not a relic (.rune)";
+  }
+  preg_match('#::version=([0-9.]+)#', $body, $match);
+  return [$url, hash('sha256', $body), $match[1] ?? null];
+}
+
+// the next patch of the last version: 0.1.0 -> 0.1.1
+function relic_patch( Array $tags ) {
+  $last = null;
+  foreach (array_keys($tags) as $version) {
+    if (preg_match('#^v?\d+\.\d+\.\d+$#', (string) $version) && ($last === null || version_compare(ltrim($version, 'v'), ltrim($last, 'v'), '>'))) {
+      $last = (string) $version;
+    }
+  }
+  if ($last === null) {
+    return null;
+  }
+  $prefix = $last[0] === 'v' ? 'v' : '';
+  list($major, $minor, $patch) = explode('.', ltrim($last, 'v'));
+  return [$last, $prefix . $major . '.' . $minor . '.' . ((int) $patch + 1)];
+}
+
+/* Take a version and add it to the tags of a relic (a version never changes once listed).
+ * Returns the relic, or null when nothing was added. */
+function relic_add( Array $relic, String $name, String $runite, String $tag, ?String $version ) {
+  $ref = relic_ref($name, $tag);
+  if (is_string($ref)) {
+    relic_line('fail', $ref);
+    return null;
+  }
+  $taken = relic_take($name, $runite, $ref[0]);
+  if (is_string($taken)) {
+    relic_line('fail', $taken);
+    return null;
+  }
+  list($url, $sha256, $rune) = $taken;
+  $tags = $relic['tags'] ?? [];
+
+  // from main: nothing new when main still holds the same relic
+  if ($tag === '') {
+    foreach ($tags as $listed => $item) {
+      if (($item['sha256'] ?? '') === $sha256) {
+        relic_line('info', "$name: " . RELIC_BRANCH . " holds the same relic as $listed, nothing to upgrade");
+        return null;
+      }
+    }
+  }
+  $version = $version ?? $tag;
+  if (isset($tags[$version])) {
+    if (($tags[$version]['sha256'] ?? '') === $sha256) {
+      relic_line('info', "$name@$version is already listed");
+    }else {
+      relic_line('fail', "$name@$version is already listed with another seal. A version never changes: give a new tag.");
+    }
+    return null;
+  }
+
+  $tags[$version] = array_filter(['url'=> $url, 'sha256'=> $sha256, 'rune'=> $rune, 'ref'=> $tag === '' ? $ref[1] : null]);
+  uksort($tags, fn($a, $b) => version_compare(ltrim($a, 'v'), ltrim($b, 'v')));
+  $relic['tags'] = $tags;
+  relic_line('ok', "$name@$version · {$ref[1]} · sha256 " . substr($sha256, 0, 12) . '…' . ($rune ? " · Rune $rune" : ''));
+  return $relic;
+}
+
+
+
+/**
+ * I N C A N T A T I O N
+ *
+ * This is your working space.
+ * Use begin() and end() to define the active logic scope.
+ */
+Aether::begin();
+Chanter::begin();
+
+
+/* INITIATE
+ * A fork starts with the records of its parent: clean up relic.json,
+ * with <username>/<project folder> as the reliquary.
+ * */
+Chanter::cast(
+  arg: 'initiate --user --yes',
+  echo: 'initiate this reliquary, clean up relic.json',
+  execute: function() {
+    $user = trim(relic_ask('user', 'Your GitHub username:'), '@/ ');
+    if (!preg_match('#^[a-z0-9][a-z0-9-]*$#i', $user)) {
+      relic_line('warn', 'A GitHub username is needed: php relic initiate --user=<username>');
+      return;
+    }
+    $main = "$user/" . relic_folder();
+
+    $record = relic_load();
+    $count = count((array) ($record['list'] ?? []));
+    if ($count && !Chanter::spell('yes')) {
+      $from = $record['main'] ?? 'relic.json';
+      if (strtolower(trim((string) Whisper::call("Clean up $count relic(s) of $from? [y/n]: "))) !== 'y') {
+        relic_line('info', 'relic.json is kept');
+        return;
+      }
+    }
+    relic_save(['main'=> $main, 'list'=> []]);
+    relic_line('ok', "relic.json is ready: the reliquary of $main");
+  }
+);
+
+
+/* REGISTER
+ * List a relic: <repo>/<runite> of the owner of this reliquary.
+ * The version comes from a tag, or from main as 0.1.0.
+ * */
+Chanter::cast(
+  arg: 'register --repo --tag --note',
+  echo: 'register a relic in relic.json',
+  execute: function() {
+    $self = relic_self();
+    if (!$self) {
+      return;
+    }
+    $owner = explode('/', $self['main'])[0];
+
+    $input = trim(preg_replace('#^https?://github\.com/#i', '', relic_ask('repo', 'Which repo? (e.g. exuracss/cast):')), '/');
+    $parts = explode('/', $input);
+    if (count($parts) === 3) {
+      if (strcasecmp($parts[0], $owner) !== 0) {
+        relic_line('fail', "$input: this reliquary only lists $owner/*");
+        return;
+      }
+      array_shift($parts);
+    }
+    list($repo, $runite) = array_pad($parts, 2, 'cast');
+    if (count($parts) > 2 || !preg_match('#^[a-z0-9._-]+$#i', $repo) || !preg_match('#^[a-z0-9._-]+$#i', $runite)) {
+      relic_line('warn', 'Give the repo and its runite: <repo>/<runite>, e.g. exuracss/cast');
+      return;
+    }
+    $name = "$owner/$repo";
+    if ($key = relic_key($self['list'], $name)) {
+      relic_line('info', "$key is already registered, run: php relic upgrade --repo=$repo");
+      return;
+    }
+
+    $tag = relic_ask('tag', 'Which tag? (empty = ' . RELIC_BRANCH . ' as ' . RELIC_FIRST . '):', true);
+    $relic = relic_add(['tags'=> []], $name, $runite, $tag, $tag === '' ? RELIC_FIRST : null);
+    if (!$relic) {
+      return;
+    }
+    $self['list'][$name] = array_filter([
+      'repo'=> "https://github.com/$name",
+      'runite'=> $runite,
+      'note'=> relic_spell('note') ?: null,
+      'tags'=> $relic['tags'],
+    ]);
+    ksort($self['list'], SORT_FLAG_CASE | SORT_STRING);
+    relic_save($self);
+    relic_line('ok', "$name registered");
+  }
+);
+
+
+/* UPGRADE
+ * A new version of a registered relic: a tag, or main as the next patch (0.1.0 -> 0.1.1).
+ * The old versions stay.
+ * */
+Chanter::cast(
+  arg: 'upgrade --repo --tag',
+  echo: 'add a new version of a relic',
+  execute: function() {
+    $self = relic_self();
+    if (!$self) {
+      return;
+    }
+    if (!$self['list']) {
+      relic_line('info', 'No relic yet, run: php relic register');
+      return;
+    }
+    $owner = explode('/', $self['main'])[0];
+    $keys = array_keys($self['list']);
+
+    $input = relic_spell('repo');
+    if ($input === '') {
+      Whisper::echo("{{nl}}");
+      foreach ($keys as $i => $key) {
+        $tags = array_keys($self['list'][$key]['tags'] ?? []);
+        Whisper::echo("  {{COLOR-INFO}}[" . ($i + 1) . "]{{COLOR-END}} $key · " . (end($tags) ?: 'no version') . "{{nl}}");
+      }
+      $input = trim((string) Whisper::call('Which relic? [ID or repo]: '));
+    }
+    $key = ctype_digit($input) ? ($keys[(int) $input - 1] ?? null) : null;
+    $key = $key ?? relic_key($self['list'], strpos($input, '/') === false ? "$owner/$input" : $input);
+    if (!$key) {
+      relic_line('fail', ($input ?: 'nothing') . ' is not registered, run: php relic register');
+      return;
+    }
+    $relic = $self['list'][$key];
+
+    $tag = relic_ask('tag', 'Which tag? (empty = ' . RELIC_BRANCH . ' as the next patch):', true);
+    $version = null;
+    if ($tag === '') {
+      $next = relic_patch($relic['tags'] ?? []);
+      if (!$next) {
+        relic_line('fail', "$key has no x.y.z version to raise, give a tag");
+        return;
+      }
+      $version = $next[1];
+    }
+    $relic = relic_add($relic, $key, (string) ($relic['runite'] ?? 'cast'), $tag, $version);
+    if (!$relic) {
+      return;
+    }
+    $self['list'][$key] = $relic;
+    relic_save($self);
+    relic_line('ok', "$key upgraded");
+  }
+);
+
+
+#sentinel-codex
+Chanter::end();
+Aether::end();

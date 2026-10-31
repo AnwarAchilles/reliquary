@@ -1,0 +1,209 @@
+# Reliquary
+
+**Forged through Rune. Kept by its people.**
+
+A reliquary keeps no relic — it only remembers where each one rests, and the seal it bore when it was listed.
+
+Reliquary is the **Relic Package Manager (RPM)** for [Rune](https://github.com/devneet-id/rune) — like npm, where the packages are **relics** (`.rune`).
+
+Unlike npm, there is **no central registry**. The repo *is* the registry: its own `relic.json` and `nexus.json`. Reliquaries are **interconnected by fork** — fork a reliquary and you have an RPM of your own, still connected to the reliquary you forked. Others fork yours, and so on: one nexus leads to the next.
+
+Each owner maintains their own reliquary, with Rune (PHP) at their side — by running its casts.
+
+**[Explore Rune ↗](https://github.com/devneet-id/rune)**
+**[Explore Exura ↗](https://github.com/devneet-id/exura)**
+
+---
+
+## How It Works
+
+Every reliquary is the same repo — a registry of its own — with the same runites and two records:
+
+| Record       | Kept by                                    | Holds                                              |
+| ------------ | ------------------------------------------ | -------------------------------------------------- |
+| `relic.json` | [`relic`](#relic)                          | the relics of this reliquary's owner               |
+| `nexus.json` | [`nexus`](#nexus)                          | the forks of this reliquary — only the way to them |
+
+```
+devneet-id/reliquary
+├── relic.json   devneet-id/*
+└── nexus.json   → demo/reliquary ─┬─ relic.json   demo/*
+                                    └─ nexus.json   → zed/reliquary ─ …
+```
+
+* **No central registry.** `devneet-id/reliquary` is only the first reliquary; it maps its forks, it does not hold them.
+* **Code from devneet, data from you.** A fork takes new code with *Sync fork*; its records belong to its owner.
+* **Relics stay home.** A `.rune` rests in its own repo; a reliquary only records the link and its seal (sha256).
+* **Your reliquary, your care.** `devneet-id/reliquary` does not review the relics of other reliquaries.
+
+---
+
+## Requirements
+
+* PHP 8.1+ with `curl` (or `allow_url_fopen`)
+* Composer
+* A GitHub account
+
+---
+
+## Begin Your Reliquary
+
+1. **Fork** [`devneet-id/reliquary`](https://github.com/devneet-id/reliquary) and clone your fork.
+2. Install Rune:
+   ```bash
+   composer install
+   ```
+3. Your fork still holds the records of its parent. Make them yours:
+   ```bash
+   php relic initiate
+   php nexus initiate
+   ```
+4. Register your relics, then push:
+   ```bash
+   php relic register
+   git add relic.json nexus.json && git commit -m "feat: my reliquary" && git push
+   ```
+
+Your reliquary is now an RPM of its own, connected to its parent: the next `php nexus update` there maps it.
+
+---
+
+## Maintaining Your Reliquary
+
+A reliquary is kept alive by its owner. Run its casts whenever something changes:
+
+| When                                  | Cast                   |
+| ------------------------------------- | ---------------------- |
+| You publish a new relic               | `php relic register`   |
+| A relic has a new tag, or `main` moved | `php relic upgrade`    |
+| Someone forked your reliquary         | `php nexus update`     |
+| You want to trust a reliquary         | `php nexus inspect`    |
+| Your records changed                  | `php pages build`       |
+
+Then commit and push `relic.json`, `nexus.json` and `index.html` — your registry is what you push.
+
+---
+
+## Registered Commands
+
+Every command asks what it needs. Every question can also be answered with a spell, so commands run unattended too (e.g. in GitHub Actions).
+
+### relic
+
+| Command                  | Spells                                       | Description                                                                 |
+| ------------------------ | -------------------------------------------- | --------------------------------------------------------------------------- |
+| `php relic initiate`     | `--user=<username>` `--yes`                  | Start a clean `relic.json` as `<username>/<project folder>` (the folder name = your repo name).                |
+| `php relic register`     | `--repo=<repo>/<runite>` `--tag=` `--note=`  | Register a relic, e.g. `exuracss/cast` → `cast.rune`. No tag → `main` as `0.1.0`. |
+| `php relic upgrade`      | `--repo=<repo>` `--tag=`                     | Add a new version. No tag → `main` as the next patch (`0.1.0` → `0.1.1`).   |
+
+### nexus
+
+| Command                  | Spells                                       | Description                                                                 |
+| ------------------------ | -------------------------------------------- | --------------------------------------------------------------------------- |
+| `php nexus initiate`     | `--user=<username>`                          | Start a clean `nexus.json` as `<username>/<project folder>`.                |
+| `php nexus update`       | —                                            | Map every fork of this reliquary into `nexus.json`.                         |
+| `php nexus inspect`      | `--repo=<owner>/<repo>`                      | Pick one reliquary on the chain (forks of forks too) and check its seals.   |
+
+### website
+
+| Command                  | Spells                                       | Description                                                                 |
+| ------------------------ | -------------------------------------------- | --------------------------------------------------------------------------- |
+| `php pages build`         | —                                            | Bundle `src/` into `index.html`, the page of this reliquary.                |
+| `php pages serve`         | —                                            | Serve this reliquary at `http://127.0.0.1:8000`.                            |
+| `php pages watch`         | —                                            | Rebuild `index.html` whenever `src/` changes.                               |
+| `php pages start`         | —                                            | Build, then serve & watch in their own processes.                           |
+| `php exura fetch`        | `--version=1.1.0` `--part=css\|js\|php\|all` | Fetch Exura into `src/exura/`.                                              |
+
+`GITHUB_TOKEN` (environment variable) is sent to the GitHub API when it is set: 60 requests/hour without it, 5,000 with it. Only `nexus update` and versions taken from `main` use the API; everything else reads raw files.
+
+### The page
+
+`index.html` reads `relic.json` and `nexus.json` next to it each time it opens — push your records and the page follows, no rebuild needed. **GitHub Pages** serves them as they are: *Settings → Pages → Deploy from a branch → `main` / root*, and your reliquary lives at `https://<you>.github.io/<repo>/`.
+
+A browser does not let a page read files from `file://`, so locally run `php pages start` (or `php pages serve`) instead of opening `index.html` directly.
+
+---
+
+## Making a Relic
+
+In the repo of your runite:
+
+```bash
+php cast artefact --invoke          # cast → cast.rune
+git add cast.rune && git commit -m "feat: relic" && git tag 1.0.0 && git push --tags
+```
+
+Then, in your reliquary:
+
+```bash
+php relic register --repo=<repo>/cast --tag=1.0.0
+```
+
+---
+
+## The Laws of the Reliquary
+
+1. **A name is its repo.** A relic is named `<owner>/<repo>`, and a reliquary only lists its owner's own repos — nobody can take another name.
+2. **A version never changes.** The same version with another seal is refused; a change is a new version.
+3. **The seal is sha256** of the `.rune` when it was listed. `nexus inspect` shows any seal that broke.
+4. **A version from `main` is pinned to its commit.** When `main` moves on, older versions stay whole.
+5. **A fork that has not initiated is silent.** It still holds its parent's records; those names are ignored.
+
+---
+
+## Records
+
+`relic.json`
+
+```json
+{
+  "main": "devneet-id/reliquary",
+  "list": {
+    "devneet-id/exuracss": {
+      "repo": "https://github.com/devneet-id/exuracss",
+      "runite": "cast",
+      "note": "…",
+      "tags": {
+        "1.1.0": { "url": "https://raw.githubusercontent.com/devneet-id/exuracss/1.1.0/cast.rune", "sha256": "…", "rune": "1.20.110" },
+        "1.1.1": { "url": "https://raw.githubusercontent.com/devneet-id/exuracss/<commit>/cast.rune", "sha256": "…", "rune": "1.20.110", "ref": "main@1a2b3c4" }
+      }
+    }
+  }
+}
+```
+
+`nexus.json`
+
+```json
+{
+  "main": "devneet-id/reliquary",
+  "list": {
+    "demo/reliquary": {
+      "owner": "demo",
+      "branch": "main",
+      "relic": "https://raw.githubusercontent.com/demo/reliquary/main/relic.json",
+      "nexus": "https://raw.githubusercontent.com/demo/reliquary/main/nexus.json"
+    }
+  }
+}
+```
+
+---
+
+## The Federation of Fides
+
+*Fides* is trust; *foedus*, the pact at the root of *federation*, shares its root.
+Every vendor keeps its own reliquary, and the seals keep the trust between them.
+
+---
+
+## References
+
+* [Rune](https://github.com/devneet-id/rune) — Application foundation and tooling.
+* [Exura](https://github.com/devneet-id/exura) — Unified framework ecosystem.
+
+---
+
+**Built to create. Kept to endure.**
+
+**DEVNEET ©**

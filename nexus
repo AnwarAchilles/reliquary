@@ -1,0 +1,411 @@
+#!/usr/bin/env php
+<?php
+/*
+ * RELIQUARY · NEXUS ✦
+ * The forks of this reliquary: nexus.json
+ *
+ * Every fork of a reliquary is a reliquary of its own, with its own forks.
+ * nexus.json only points the way to them — their relics stay in their own relic.json —
+ * so reliquaries connect to each other, one nexus.json to the next.
+ *
+ * Run this script using:
+ *   $ php nexus
+ *   $ php nexus initiate [--user=<username>]
+ *   $ php nexus update
+ *   $ php nexus inspect [--repo=<owner>/<repo>]
+ * Every question can be answered with its spell instead (e.g. for GitHub Actions).
+ *
+ * nexus.json:
+ *   { "main": "<owner>/<repo>", "list": { "<owner>/<repo>": {
+ *       "owner", "branch", "relic": "<raw url of its relic.json>", "nexus": "<raw url of its nexus.json>" } } }
+ *
+ * Spells for tests (point them at a fake GitHub):
+ *   --api=<url>   the GitHub API   (default https://api.github.com)
+ *   --raw=<url>   raw files        (default https://raw.githubusercontent.com)
+ * A GITHUB_TOKEN environment variable is sent to the API when it is set.
+ */
+require_once __DIR__ . '/vendor/autoload.php';
+
+
+
+/**
+ * I N V O C A T I O N
+ *
+ * Step 1 — Summon the runes:
+ * Import each module's manifest.
+ *
+ * Step 2 — Channel the energy:
+ * Initialize ether, essence, and entity.
+ *
+ * Note: Keep #sentinel markers if you're using Sentinel support.
+ */
+use Rune\Aether\Manifest as Aether;
+use Rune\Whisper\Manifest as Whisper;
+use Rune\Weaver\Manifest as Weaver;
+use Rune\Chanter\Manifest as Chanter;
+use Rune\Forger\Manifest as Forger;
+#sentinel-manifest
+
+Aether::ether()::essence()::entity();
+Whisper::ether()::essence()::entity();
+Weaver::ether()::essence()::entity();
+Chanter::ether()::essence()::entity();
+Forger::ether()::essence()::entity();
+#sentinel-awaken
+
+
+
+/**
+ * N E X U S
+ *
+ * The logic of this runite. It stands alone: relic has its own.
+ */
+
+const NEXUS_DEPTH = 10; // forks of forks, how deep the chain is followed
+
+// a spell with a value, or its default (a spell without a value is '1')
+function nexus_spell( String $key, String $default = '' ) {
+  $value = Chanter::spell($key);
+  return ($value === false || $value === '' || $value === '1') ? $default : trim((string) $value);
+}
+
+// the answer of a spell, or ask for it
+function nexus_ask( String $key, String $question ) {
+  return nexus_spell($key) ?: trim((string) Whisper::call("$question "));
+}
+
+function nexus_api() { return rtrim(nexus_spell('api', 'https://api.github.com'), '/'); }
+function nexus_raw() { return rtrim(nexus_spell('raw', 'https://raw.githubusercontent.com'), '/'); }
+
+function nexus_line( String $state, String $text ) {
+  $color = ['ok'=> 'SUCCESS', 'warn'=> 'WARNING', 'fail'=> 'DANGER', 'info'=> 'SECONDARY'][$state];
+  $icon = ['ok'=> 'SUCCESS', 'warn'=> 'WARNING', 'fail'=> 'DANGER', 'info'=> 'INFO'][$state];
+  Whisper::echo("{{COLOR-$color}}{{ICON-$icon}}{{COLOR-END}} $text{{nl}}");
+}
+
+// the name of the project folder: the repo of this reliquary
+function nexus_folder() {
+  $parts = preg_split('#[\\\\/]#', rtrim(AETHER_REPO, '\\/'));
+  return end($parts);
+}
+
+function nexus_json( String $text ) {
+  $data = json_decode($text, true);
+  return is_array($data) ? $data : null;
+}
+
+function nexus_load() {
+  return nexus_json((string) Forger::item(AETHER_REPO . '/nexus.json'));
+}
+
+function nexus_save( Array $record ) {
+  $record['list'] = $record['list'] ?: new stdClass;
+  $json = json_encode($record, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
+  $json = preg_replace_callback('/^( +)/m', fn($match) => str_repeat(' ', strlen($match[1]) / 2), $json); // 2 spaces
+  return Forger::item(AETHER_REPO . '/nexus.json', str_replace("\n", "\r\n", $json) . "\r\n");
+}
+
+// this reliquary: nexus.json with its "main", or a hint to run initiate
+function nexus_self() {
+  $record = nexus_load();
+  if (!$record || !preg_match('#^[^/]+/[^/]+$#', (string) ($record['main'] ?? ''))) {
+    nexus_line('warn', 'nexus.json has no "main", run: php nexus initiate');
+    return null;
+  }
+  $record['list'] = is_array($record['list'] ?? null) ? $record['list'] : [];
+  return $record;
+}
+
+// GET a url: [status, body]; status 0 = can not be reached
+function nexus_fetch( String $url, Bool $api = false ) {
+  $headers = ['User-Agent: rune-reliquary'];
+  if ($api) {
+    $headers[] = 'Accept: application/vnd.github+json';
+    if (getenv('GITHUB_TOKEN')) {
+      $headers[] = 'Authorization: Bearer ' . getenv('GITHUB_TOKEN');
+    }
+  }
+  if (function_exists('curl_init')) {
+    $curl = curl_init($url);
+    curl_setopt_array($curl, [
+      CURLOPT_RETURNTRANSFER=> true,
+      CURLOPT_FOLLOWLOCATION=> true,
+      CURLOPT_TIMEOUT=> 30,
+      CURLOPT_HTTPHEADER=> $headers,
+    ]);
+    $body = curl_exec($curl);
+    $status = (int) curl_getinfo($curl, CURLINFO_RESPONSE_CODE);
+    curl_close($curl);
+    return [$body === false ? 0 : $status, $body === false ? '' : $body];
+  }
+  if (ini_get('allow_url_fopen')) {
+    $context = stream_context_create(['http'=> [
+      'timeout'=> 30,
+      'header'=> implode("\r\n", $headers),
+      'follow_location'=> 1,
+      'ignore_errors'=> true,
+    ]]);
+    $body = @file_get_contents($url, false, $context);
+    $status = 0;
+    foreach ($http_response_header ?? [] as $line) {
+      if (preg_match('#^HTTP/\S+\s+(\d{3})#', $line, $match)) {
+        $status = (int) $match[1]; // the last status wins (after redirects)
+      }
+    }
+    return [$body === false ? 0 : $status, $body === false ? '' : $body];
+  }
+  nexus_line('fail', 'PHP can not go online: enable curl (or allow_url_fopen) in php.ini');
+  return [0, ''];
+}
+
+/* The relics of a reliquary from its relic.json.
+ * Only "<owner>/*" counts: a fork inherits relic.json of its parent until it runs
+ * `php relic initiate`, so names of other owners are ignored — nobody can take another name.
+ * Returns [relics, problems]. */
+function nexus_relics( Mixed $record, String $owner ) {
+  if (!is_array($record) || !isset($record['list']) || !is_array($record['list'])) {
+    return [[], ['relic.json is not a reliquary record']];
+  }
+  $relics = [];
+  $problems = [];
+  foreach ($record['list'] as $name => $relic) {
+    $name = (string) $name;
+    if (strcasecmp(explode('/', $name)[0], $owner) !== 0) {
+      $problems[] = "$name: ignored, only $owner/* belongs here";
+      continue;
+    }
+    if (!is_array($relic) || empty($relic['tags']) || !is_array($relic['tags'])) {
+      $problems[] = "$name: has no tags";
+      continue;
+    }
+    $relics[$name] = $relic;
+  }
+  return [$relics, $problems];
+}
+
+/* Every reliquary on the chain: the forks of this one, their forks... (up to NEXUS_DEPTH)
+ * Each reliquary is read once. Returns [ "<owner>/<repo>" => [owner, relic, nexus, via] ]. */
+function nexus_chain( Array $self ) {
+  $chain = [];
+  $queue = [[$self['list'], $self['main'], 1]];
+  while ($queue) {
+    list($list, $via, $depth) = array_shift($queue);
+    foreach ((array) $list as $full_name => $fork) {
+      if (isset($chain[$full_name]) || $full_name === $self['main'] || !is_array($fork)) {
+        continue;
+      }
+      $chain[$full_name] = [
+        'owner'=> (string) ($fork['owner'] ?? explode('/', $full_name)[0]),
+        'relic'=> (string) ($fork['relic'] ?? ''),
+        'nexus'=> (string) ($fork['nexus'] ?? ''),
+        'via'=> $via,
+      ];
+      if ($chain[$full_name]['nexus'] !== '' && $depth < NEXUS_DEPTH) {
+        list($status, $body) = nexus_fetch($chain[$full_name]['nexus']);
+        $next = $status === 200 ? (nexus_json($body)['list'] ?? null) : null;
+        if (is_array($next) && $next) {
+          $queue[] = [$next, $full_name, $depth + 1];
+        }
+      }
+    }
+  }
+  return $chain;
+}
+
+
+
+/**
+ * I N C A N T A T I O N
+ *
+ * This is your working space.
+ * Use begin() and end() to define the active logic scope.
+ */
+Aether::begin();
+Chanter::begin();
+
+
+/* INITIATE
+ * A fork starts with the nexus of its parent: clean up nexus.json,
+ * with <username>/<project folder> as the reliquary.
+ * */
+Chanter::cast(
+  arg: 'initiate --user',
+  echo: 'initiate this fork, clean up nexus.json',
+  execute: function() {
+    $user = nexus_spell('user');
+    if ($user === '') {
+      $main = (string) (nexus_load()['main'] ?? '');
+      if (preg_match('#^([^/]+)/[^/]+$#', $main, $match)) {
+        Whisper::echo("{{nl}}nexus.json is now the reliquary of {{bold}}$main{{end}}{{nl}}");
+        if (strtolower(trim((string) Whisper::call("Is {$match[1]} your GitHub username? [y/n]: "))) === 'y') {
+          $user = $match[1];
+        }
+      }
+      if ($user === '') {
+        $user = trim((string) Whisper::call('Your GitHub username: '));
+      }
+    }
+    $user = trim($user, '@/ ');
+    if (!preg_match('#^[a-z0-9][a-z0-9-]*$#i', $user)) {
+      nexus_line('warn', 'A GitHub username is needed: php nexus initiate --user=<username>');
+      return;
+    }
+    $main = "$user/" . nexus_folder();
+    nexus_save(['main'=> $main, 'list'=> []]);
+    nexus_line('ok', "nexus.json is ready: the reliquary of $main");
+  }
+);
+
+
+/* UPDATE
+ * nexus.json: every fork of this reliquary (GET /repos/<main>/forks, all pages).
+ * Each fork is read once to count its relics; its relics stay in its own relic.json.
+ * */
+Chanter::cast(
+  arg: 'update',
+  echo: 'map the forks of this reliquary in nexus.json',
+  execute: function() {
+    $self = nexus_self();
+    if (!$self) {
+      return;
+    }
+    $main = $self['main'];
+    $api = nexus_api();
+    $raw = nexus_raw();
+    Whisper::echo("{{nl}}{{bold}}Nexus{{end}} $main{{nl}}{{nl}}");
+
+    $forks = [];
+    for ($page = 1; $page <= 100; $page++) {
+      list($status, $body) = nexus_fetch("$api/repos/$main/forks?per_page=100&page=$page", true);
+      $list = $status === 200 ? nexus_json($body) : null;
+      if ($list === null) {
+        nexus_line('fail', "The forks of $main can not be read (HTTP $status), nexus.json is not written");
+        return;
+      }
+      if (!$list) {
+        break;
+      }
+      $forks = array_merge($forks, $list);
+    }
+
+    $nexus = [];
+    $problems = 0;
+    foreach ($forks as $fork) {
+      $full_name = (string) ($fork['full_name'] ?? ''); // the name of today: a renamed fork follows
+      $owner = (string) ($fork['owner']['login'] ?? '');
+      $branch = (string) ($fork['default_branch'] ?? 'main');
+      if ($full_name === '' || $owner === '') {
+        continue;
+      }
+      $relic = "$raw/$full_name/$branch/relic.json";
+      list($status, $body) = nexus_fetch($relic);
+      if ($status !== 200) {
+        nexus_line('info', "$full_name · no relic.json yet");
+      }else {
+        list($found, $issues) = nexus_relics(nexus_json($body), $owner);
+        foreach ($issues as $issue) {
+          nexus_line('warn', "$full_name · $issue");
+          $problems++;
+        }
+        nexus_line('ok', "$full_name · " . count($found) . " relic(s)");
+      }
+      $nexus[$full_name] = [
+        'owner'=> $owner,
+        'branch'=> $branch,
+        'relic'=> $relic,
+        'nexus'=> "$raw/$full_name/$branch/nexus.json", // its own forks: reliquaries map each other
+      ];
+    }
+    ksort($nexus, SORT_FLAG_CASE | SORT_STRING);
+
+    nexus_save(['main'=> $main, 'list'=> $nexus]);
+    Whisper::echo("{{nl}}{{COLOR-SUCCESS}}nexus.json{{COLOR-END}}: " . count($nexus) . " fork(s), $problems problem(s){{nl}}");
+  }
+);
+
+
+/* INSPECT
+ * Pick one reliquary on the chain (forks of forks too):
+ * its relics, and the seal (sha256) of every version.
+ * */
+Chanter::cast(
+  arg: 'inspect --repo',
+  echo: 'inspect one reliquary on the chain',
+  execute: function() {
+    $self = nexus_self();
+    if (!$self) {
+      return;
+    }
+    $chain = nexus_chain($self);
+    if (!$chain) {
+      nexus_line('info', 'No fork in nexus.json yet, run: php nexus update');
+      return;
+    }
+    $names = array_keys($chain);
+
+    $input = nexus_spell('repo');
+    if ($input === '') {
+      Whisper::echo("{{nl}}");
+      foreach ($names as $i => $name) {
+        $via = $chain[$name]['via'] !== $self['main'] ? " {{COLOR-SECONDARY}}via {$chain[$name]['via']}{{COLOR-END}}" : '';
+        Whisper::echo("  {{COLOR-INFO}}[" . ($i + 1) . "]{{COLOR-END}} $name$via{{nl}}");
+      }
+      $input = trim((string) Whisper::call('Which reliquary? [ID or owner/repo]: '));
+    }
+    $name = ctype_digit($input) ? ($names[(int) $input - 1] ?? null) : null;
+    foreach ($names as $listed) {
+      $name = $name ?? (strcasecmp($listed, $input) === 0 ? $listed : null);
+    }
+    if (!$name) {
+      nexus_line('fail', ($input ?: 'nothing') . ' is not on the chain of ' . $self['main']);
+      return;
+    }
+    $source = $chain[$name];
+
+    Whisper::echo("{{nl}}{{bold}}Inspect{{end}} $name {{COLOR-SECONDARY}}via {$source['via']}{{COLOR-END}}{{nl}}{{nl}}");
+    list($status, $body) = nexus_fetch($source['relic']);
+    $record = $status === 200 ? nexus_json($body) : null;
+    if (!$record) {
+      nexus_line('info', "$name · no relic.json (HTTP $status)");
+      return;
+    }
+    list($relics, $issues) = nexus_relics($record, $source['owner']);
+    foreach ($issues as $issue) {
+      nexus_line('warn', $issue);
+    }
+    if (!$relics) {
+      nexus_line('info', "$name · no relic yet");
+      return;
+    }
+
+    $count = ['ok'=> 0, 'fail'=> 0];
+    foreach ($relics as $relic_name => $relic) {
+      Whisper::echo("{{COLOR-INFO}}♦{{COLOR-END}} {{bold}}$relic_name{{end}} · " . ($relic['runite'] ?? 'cast') . '.rune' . "{{nl}}");
+      if (!empty($relic['note'])) {
+        Whisper::echo("  {{COLOR-SECONDARY}}" . mb_strimwidth($relic['note'], 0, 72, '…') . "{{COLOR-END}}{{nl}}");
+      }
+      foreach ($relic['tags'] as $version => $item) {
+        list($status, $body) = nexus_fetch((string) ($item['url'] ?? ''));
+        if ($status !== 200) {
+          $problem = "can not be fetched (HTTP $status)";
+        }elseif (strpos($body, '[ᚱᚾ]') === false) {
+          $problem = 'not a relic (.rune)';
+        }elseif (!hash_equals(strtolower((string) ($item['sha256'] ?? '')), hash('sha256', $body))) {
+          $problem = 'the seal is broken (sha256)';
+        }else {
+          $problem = null;
+        }
+        $ref = !empty($item['ref']) ? " · {$item['ref']}" : '';
+        Whisper::echo('  ');
+        nexus_line($problem ? 'fail' : 'ok', "$version$ref" . ($problem ? ": $problem" : ''));
+        $count[$problem ? 'fail' : 'ok']++;
+      }
+    }
+    Whisper::echo("{{nl}}" . count($relics) . " relic(s) · {$count['ok']} sealed, {$count['fail']} failed{{nl}}");
+  }
+);
+
+
+#sentinel-codex
+Chanter::end();
+Aether::end();

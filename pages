@@ -1,0 +1,157 @@
+#!/usr/bin/env php
+<?php
+/*
+ * Act. 1 - ???
+ * THE BEYOND ✦✦✦
+ *
+ * From the silence of nothingness, echoes rise from the void.
+ * A journey begins — with runes at your side.
+ * 
+ * Run this script using:
+ *   $ php pages
+ *   $ php pages build
+ *   $ php pages start   (build, then serve & watch)
+ */
+require_once __DIR__ . '/vendor/autoload.php';
+
+
+
+/**
+ * I N V O C A T I O N
+ * 
+ * Step 1 — Summon the runes:  
+ * Import each module's manifest.
+ * 
+ * Step 2 — Channel the energy:  
+ * Initialize ether, essence, and entity.
+ * 
+ * Note: Keep #sentinel markers if you're using Sentinel support.
+ */
+use Rune\Aether\Manifest as Aether;
+use Rune\Chanter\Manifest as Chanter;
+use Rune\Weaver\Manifest as Weaver;
+use Rune\Whisper\Manifest as Whisper;
+use Rune\Forger\Manifest as Forger;
+use Rune\Cipher\Manifest as Cipher;
+use Rune\Keeper\Manifest as Keeper;
+use Rune\Crafter\Manifest as Crafter;
+use Rune\Specter\Manifest as Specter;
+#sentinel-manifest
+
+Aether::ether()::essence()::entity();
+Chanter::ether()::essence()::entity();
+Weaver::ether()::essence()::entity();
+Whisper::ether()::essence()::entity();
+Forger::ether()::essence()::entity();
+Cipher::ether()::essence()::entity();
+Keeper::ether()::essence()::entity();
+Crafter::ether()::essence()::entity();
+Specter::ether()::essence()::entity();
+#sentinel-awaken
+
+
+
+/**
+ * I N C A N T A T I O N
+ * 
+ * This is your working space.  
+ * Use begin() and end() to define the active logic scope.
+ */
+Aether::begin();
+Chanter::begin();
+Keeper::begin();
+
+
+/* BUILD
+ * todo bundling to website applications 
+ * [i]INFO: crafting process will be reset your shard in .echoes
+ * */
+Chanter::cast(
+  arg: 'build',
+  echo: 'bundling to website applications',
+  execute: function() {
+    // create crafting environment
+    Crafter::item('landing-pages', function() {
+      // set seeds
+      Crafter::seed('DIST', __DIR__ . '/index.html'); // distribution file output
+      Crafter::seed('TYPE', 'plain'); // plain (HTML,CSS,JS) or function, class (PHP only)
+      Crafter::seed('LANGUAGE', ['html','css','js']); // web language only 4 html, css, js, php
+      
+      // set multiple shards with Forger
+      Forger::scan('src/exura/', function($item) {
+        Crafter::shard($item->target);
+      });
+    
+      // set shards one by one
+      Crafter::shard('src/index.head.html'); // privately for HTML <head>
+      Crafter::shard('src/index.html'); // HTML <body>
+      Crafter::shard('src/index.css');
+      Crafter::shard('src/index.js');
+    });
+    // run crafting
+    Crafter::spark('landing-pages');
+  }
+);
+
+
+/* WATCH
+ * todo observe change in src then trigger build
+ *  */
+Chanter::cast(
+  arg: 'watch',
+  echo: 'observe change in src then trigger build',
+  execute: function() {
+    Specter::observer('src', function() {
+      Chanter::cast('build')();
+    });
+  }
+);
+
+
+/* SERVE
+ * todo start local-development server PHP
+ * [i]INFO: the page reads relic.json & nexus.json next to it,
+ * a browser refuses to read them from file://, so serve it.
+ *  */
+Chanter::cast(
+  arg: 'serve',
+  echo: 'start local-development server PHP',
+  execute: function() {
+    Specter::devserver([
+      'path'=> __DIR__, // index.html, relic.json & nexus.json
+    ]);
+  }
+);
+
+
+/* START
+ * todo build, then serve & watch in another process
+ *  */
+Chanter::cast(
+  arg: 'start',
+  echo: 'build, then serve & watch in another process',
+  execute: function() {
+    // build it first
+    Chanter::cast('build')();
+    // run serve with specter cast
+    Specter::cast('{{self}} serve', [
+      'exit' => true,
+      'title'=> 'RUNE:: Local Development Server'
+    ]);
+    // run watch with specter cast
+    Specter::cast('{{self}} watch', [
+      'exit' => true,
+      'title'=> 'RUNE:: Observer Directories'
+    ]);
+    // all of specter.cast is non-blocking execution
+  }
+);
+
+
+// Build website is good as it easy right?, 
+// <3 enjoy it.
+
+#sentinel-codex
+Chanter::end();
+Keeper::end();
+Aether::end();

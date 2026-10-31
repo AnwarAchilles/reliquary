@@ -1,0 +1,105 @@
+#!/usr/bin/env php
+<?php
+/**
+ * Act. 1 - Understanding Its Flow  
+ * THE AWAKENING ✦
+ * 
+ * From the silence of nothingness, echoes rise from the void.
+ * A journey begins — with runes at your side.
+ * 
+ * Run this script using:
+ *   $ php exura
+ *   $ php exura grimoire
+ */
+require_once __DIR__ . '/vendor/autoload.php';
+
+
+
+/**
+ * I N V O C A T I O N
+ * 
+ * Step 1 — Summon the runes:  
+ * Import each module's manifest.
+ * 
+ * Step 2 — Channel the energy:  
+ * Initialize ether, essence, and entity.
+ * 
+ * Note: Keep #sentinel markers if you're using Sentinel support.
+ */
+use Rune\Aether\Manifest as Aether;
+use Rune\Whisper\Manifest as Whisper;
+use Rune\Weaver\Manifest as Weaver;
+use Rune\Chanter\Manifest as Chanter;
+#sentinel-manifest
+
+Aether::ether()::essence()::entity();
+Whisper::ether()::essence()::entity();
+Weaver::ether()::essence()::entity();
+Chanter::ether()::essence()::entity();
+#sentinel-awaken
+
+
+
+/**
+ * I N C A N T A T I O N
+ * 
+ * This is your working space.  
+ * Use begin() and end() to define the active logic scope.
+ */
+Aether::begin();
+Chanter::begin();
+
+/* EXURA
+ * Fetch Exura CSS, JS, or PHP into src/
+ * from the specified release version on jsDelivr.
+ * Supports fetching individual parts or all parts.
+ */
+Chanter::cast(
+  arg: 'fetch --version=1.1.0 --part=css|js|php|all',
+  echo: 'fetch Exura assets from jsDelivr',
+  execute: function() {
+    // get version and part from command line arguments
+    $version = Chanter::spell('version');
+    if (empty($version)) {
+      $version = '1.1.0'; // default version if not specified
+    }
+    $part = Chanter::spell('part');
+    $cdn = 'https://cdn.jsdelivr.net/gh/devneet-id';
+    // fetch files
+    $files = [
+      'css' => [
+        'src/exura/exura.css'      => "$cdn/exuracss@$version/dist/exura.min.css",
+        'src/exura/exura-clip.css' => "$cdn/exuracss@$version/dist/exura-clip.css",
+      ],
+      'js' => [ 'src/exura/exura.js' => "$cdn/exurajs@$version/dist/exura.min.js" ],
+      'php' => [ 'src/exura/exura.php' => "$cdn/exuraphp@$version/dist/exura.php" ],
+    ];
+    // determine which files to fetch based on the specified part
+    if (empty($part) || $part === 'all') {
+      $files = array_merge(...array_values($files));
+    } else {
+      $files = $files[$part] ?? [];
+      // if the specified part is invalid, notify the user and exit
+      if (empty($files)) {
+        Whisper::echo("{{color-danger}}{{icon-warning}} invalid part: $part{{nl}}");
+        return;
+      }
+    }
+    // fetch each file and save it to the target location
+    foreach ($files as $target => $from) {
+      $source = @file_get_contents($from);
+      // if the source cannot be read, notify the user and continue to the next file
+      if ($source === false || $source === '') {
+        Whisper::echo("{{color-danger}}{{icon-warning}} cannot read $from{{nl}}");
+        continue;
+      }
+      // save the fetched content to the target file
+      Forger::item(__DIR__ . "/$target", $source);
+      Whisper::echo("{{color-success}}{{icon-success}} $target{{color-end}} ← $from{{nl}}");
+    }
+  }
+);
+
+#sentinel-codex
+Chanter::end();
+Aether::end();
