@@ -1,6 +1,19 @@
 {
   "main": "devneet-id/reliquary",
   "list": {
+    "devneet-id/build-website": {
+      "repo": "https://github.com/devneet-id/build-website",
+      "runite": "cast",
+      "note": "Build a website with HTML, CSS, JS & PHP, bundled into one dist/index.php.",
+      "tags": {
+        "0.1.0": {
+          "url": "https://raw.githubusercontent.com/devneet-id/build-website/cf41baa50f7cffeebcd22e6775279c5103062079/cast.rune",
+          "sha256": "632f4d9e68acc0dfddbb1f940bb88040a059b43b4f22a815da2cd6b37f82eaf3",
+          "rune": "1.20.114",
+          "ref": "main@cf41baa"
+        }
+      }
+    },
     "devneet-id/how-to-casting": {
       "repo": "https://github.com/devneet-id/how-to-casting",
       "runite": "cast",
