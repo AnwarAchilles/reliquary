@@ -9,9 +9,8 @@
     <a href="#top" class="brand">RELIQUARY</a>
     <div flex="a:middle g:1">
       <div class="links" flex="a:middle g:1">
+        <a href="#explore">Explore</a>
         <a href="#contribute">Contribute</a>
-        <a href="#relics">Relics</a>
-        <a href="#nexus">Nexus</a>
       </div>
       <exura-navbar>
         <a class="pill" href="{{repo}}" target="_blank" rel="noopener"><i clip="link"></i> GitHub</a>
@@ -44,6 +43,41 @@
     </exura-hero>
   </div>
 </header>
+
+
+<!-- E X P L O R E
+ * relics & nexus, read from relic.json & nexus.json of this reliquary -->
+<section id="explore">
+  <div container>
+    <div class="heading">
+      <span class="eyebrow">Explore</span>
+      <h2>Where relics rest.</h2>
+      <p>Sealed snapshots of runites — kept here, and across every linked reliquary.</p>
+    </div>
+
+    <div class="grid explore">
+      <div id="relics" class="glass panel">
+        <exura-relics>
+          <div class="panel-head" flex="j:between a:middle">
+            <h3><i clip="trophy"></i> Relic</h3>
+            <span class="count">{{count}}</span>
+          </div>
+          <div class="panel-body">{{{list}}}</div>
+        </exura-relics>
+      </div>
+
+      <div id="nexus" class="glass panel">
+        <exura-nexus>
+          <div class="panel-head" flex="j:between a:middle">
+            <h3><i clip="link"></i> Nexus</h3>
+            <span class="count">{{count}}</span>
+          </div>
+          <div class="panel-body">{{{list}}}</div>
+        </exura-nexus>
+      </div>
+    </div>
+  </div>
+</section>
 
 
 <!-- C O N T R I B U T E
@@ -89,41 +123,6 @@ git push</pre></div>
       <code>php nexus update</code>
       <code>php nexus inspect</code>
       <code>php cast build</code>
-    </div>
-  </div>
-</section>
-
-
-<!-- R E L I C   &   N E X U S
- * read from relic.json & nexus.json of this reliquary -->
-<section id="records">
-  <div container>
-    <div class="heading">
-      <span class="eyebrow">The records</span>
-      <h2>Relics &amp; Nexus</h2>
-      <p>The relics this reliquary keeps — sealed snapshots of runites — and the links to the reliquaries beyond it.</p>
-    </div>
-
-    <div class="grid records">
-      <div id="relics" class="glass panel">
-        <exura-relics>
-          <div class="panel-head" flex="j:between a:middle">
-            <h3><i clip="trophy"></i> Relic</h3>
-            <span class="count">{{count}}</span>
-          </div>
-          <div class="panel-body">{{{list}}}</div>
-        </exura-relics>
-      </div>
-
-      <div id="nexus" class="glass panel">
-        <exura-nexus>
-          <div class="panel-head" flex="j:between a:middle">
-            <h3><i clip="link"></i> Nexus</h3>
-            <span class="count">{{count}}</span>
-          </div>
-          <div class="panel-body">{{{list}}}</div>
-        </exura-nexus>
-      </div>
     </div>
   </div>
 </section>

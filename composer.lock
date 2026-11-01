@@ -8,16 +8,16 @@
     "packages": [
         {
             "name": "devneet/rune",
-            "version": "v1.12.31",
+            "version": "1.20.114",
             "source": {
                 "type": "git",
                 "url": "https://github.com/devneet-id/rune.git",
-                "reference": "afcfebe464a891b7fa35a308d514ebd1532c2c95"
+                "reference": "1563c51e4583cee72ef5bb95a9f5b21e0854c1c7"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/devneet-id/rune/zipball/afcfebe464a891b7fa35a308d514ebd1532c2c95",
-                "reference": "afcfebe464a891b7fa35a308d514ebd1532c2c95",
+                "url": "https://api.github.com/repos/devneet-id/rune/zipball/1563c51e4583cee72ef5bb95a9f5b21e0854c1c7",
+                "reference": "1563c51e4583cee72ef5bb95a9f5b21e0854c1c7",
                 "shasum": ""
             },
             "require": {
@@ -48,7 +48,7 @@
                 "issues": "https://github.com/devneet/rune/issues",
                 "source": "https://github.com/devneet/rune"
             },
-            "time": "2026-10-21T14:43:12+00:00"
+            "time": "2026-11-01T03:41:48+00:00"
         }
     ],
     "packages-dev": [],
