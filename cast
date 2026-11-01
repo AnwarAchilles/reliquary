@@ -8,9 +8,9 @@
  * A journey begins — with runes at your side.
  * 
  * Run this script using:
- *   $ php pages
- *   $ php pages build
- *   $ php pages start   (build, then serve & watch)
+ *   $ php cast
+ *   $ php cast build
+ *   $ php cast start   (build, then serve & watch)
  */
 require_once __DIR__ . '/vendor/autoload.php';
 

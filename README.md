@@ -4,9 +4,11 @@
 
 A reliquary keeps no relic — it only remembers where each one rests, and the seal it bore when it was listed.
 
-Reliquary is the **Relic Package Manager (RPM)** for [Rune](https://github.com/devneet-id/rune) — like npm, where the packages are **relics** (`.rune`).
+Reliquary is the **Federated Relic Registry** for [Rune](https://github.com/devneet-id/rune).
 
-Unlike npm, there is **no central registry**. The repo *is* the registry: its own `relic.json` and `nexus.json`. Reliquaries are **interconnected by fork** — fork a reliquary and you have an RPM of your own, still connected to the reliquary you forked. Others fork yours, and so on: one nexus leads to the next.
+A **relic** (`.rune`) is a sealed snapshot of a runite — its code, its echoes and its shards in a single file — much like a Docker image: take it anywhere, and it comes back to life as it was sealed.
+
+Like Docker Hub, a reliquary records where relics rest and the seal (sha256) of each version. Unlike Docker Hub, there is **no central registry**: the repo *is* the registry — its own `relic.json` and `nexus.json`. Reliquaries are **federated by fork** — fork a reliquary and you have a registry of your own, still linked to the one you forked. Others fork yours, and so on: one nexus leads to the next.
 
 Each owner maintains their own reliquary, with Rune (PHP) at their side — by running its casts.
 
@@ -22,7 +24,7 @@ Every reliquary is the same repo — a registry of its own — with the same run
 | Record       | Kept by                                    | Holds                                              |
 | ------------ | ------------------------------------------ | -------------------------------------------------- |
 | `relic.json` | [`relic`](#relic)                          | the relics of this reliquary's owner               |
-| `nexus.json` | [`nexus`](#nexus)                          | the forks of this reliquary — only the way to them |
+| `nexus.json` | [`nexus`](#nexus)                          | the links to its forks — only the way to them      |
 
 ```
 devneet-id/reliquary
@@ -30,6 +32,17 @@ devneet-id/reliquary
 └── nexus.json   → demo/reliquary ─┬─ relic.json   demo/*
                                     └─ nexus.json   → zed/reliquary ─ …
 ```
+
+If you know Docker, you already know the shape of it:
+
+| Docker                   | Reliquary                                                       |
+| ------------------------ | --------------------------------------------------------------- |
+| image                    | relic (`.rune`), a sealed snapshot of a runite                  |
+| `docker build`           | `php cast reliquary --runite-relic`                             |
+| tag · digest             | version · seal (sha256)                                         |
+| `docker push`            | push the `.rune` to its repo, then `php relic register`         |
+| `docker pull` + `run`    | `php cast reliquary --relic-runite=<vendor>/<repo>`             |
+| Docker Hub               | `devneet-id/reliquary` — and every fork, each a registry itself |
 
 * **No central registry.** `devneet-id/reliquary` is only the first reliquary; it maps its forks, it does not hold them.
 * **Code from devneet, data from you.** A fork takes new code with *Sync fork*; its records belong to its owner.
@@ -64,7 +77,7 @@ devneet-id/reliquary
    git add relic.json nexus.json && git commit -m "feat: my reliquary" && git push
    ```
 
-Your reliquary is now an RPM of its own, connected to its parent: the next `php nexus update` there maps it.
+Your reliquary is now a registry of its own, linked to its parent: the next `php nexus update` there maps it.
 
 ---
 
@@ -78,7 +91,7 @@ A reliquary is kept alive by its owner. Run its casts whenever something changes
 | A relic has a new tag, or `main` moved | `php relic upgrade`    |
 | Someone forked your reliquary         | `php nexus update`     |
 | You want to trust a reliquary         | `php nexus inspect`    |
-| Your records changed                  | `php pages build`       |
+| Your records changed                  | `php cast build`       |
 
 Then commit and push `relic.json`, `nexus.json` and `index.html` — your registry is what you push.
 
@@ -108,10 +121,10 @@ Every command asks what it needs. Every question can also be answered with a spe
 
 | Command                  | Spells                                       | Description                                                                 |
 | ------------------------ | -------------------------------------------- | --------------------------------------------------------------------------- |
-| `php pages build`         | —                                            | Bundle `src/` into `index.html`, the page of this reliquary.                |
-| `php pages serve`         | —                                            | Serve this reliquary at `http://127.0.0.1:8000`.                            |
-| `php pages watch`         | —                                            | Rebuild `index.html` whenever `src/` changes.                               |
-| `php pages start`         | —                                            | Build, then serve & watch in their own processes.                           |
+| `php cast build`         | —                                            | Bundle `src/` into `index.html`, the page of this reliquary.                |
+| `php cast serve`         | —                                            | Serve this reliquary at `http://127.0.0.1:8000`.                            |
+| `php cast watch`         | —                                            | Rebuild `index.html` whenever `src/` changes.                               |
+| `php cast start`         | —                                            | Build, then serve & watch in their own processes.                           |
 | `php exura fetch`        | `--version=1.1.0` `--part=css\|js\|php\|all` | Fetch Exura into `src/exura/`.                                              |
 
 `GITHUB_TOKEN` (environment variable) is sent to the GitHub API when it is set: 60 requests/hour without it, 5,000 with it. Only `nexus update` and versions taken from `main` use the API; everything else reads raw files.
@@ -120,16 +133,16 @@ Every command asks what it needs. Every question can also be answered with a spe
 
 `index.html` reads `relic.json` and `nexus.json` next to it each time it opens — push your records and the page follows, no rebuild needed. **GitHub Pages** serves them as they are: *Settings → Pages → Deploy from a branch → `main` / root*, and your reliquary lives at `https://<you>.github.io/<repo>/`.
 
-A browser does not let a page read files from `file://`, so locally run `php pages start` (or `php pages serve`) instead of opening `index.html` directly.
+A browser does not let a page read files from `file://`, so locally run `php cast start` (or `php cast serve`) instead of opening `index.html` directly.
 
 ---
 
 ## Making a Relic
 
-In the repo of your runite:
+A relic is sealed from a runite, the way an image is built from a Dockerfile. In the repo of your runite:
 
 ```bash
-php cast artefact --invoke          # cast → cast.rune
+php cast reliquary --runite-relic   # cast → cast.rune, the snapshot
 git add cast.rune && git commit -m "feat: relic" && git tag 1.0.0 && git push --tags
 ```
 
@@ -137,6 +150,12 @@ Then, in your reliquary:
 
 ```bash
 php relic register --repo=<repo>/cast --tag=1.0.0
+```
+
+Anyone can now bring it back to life, in any runite (Rune 1.20+):
+
+```bash
+php cast reliquary --relic-runite=<vendor>/<repo>
 ```
 
 ---

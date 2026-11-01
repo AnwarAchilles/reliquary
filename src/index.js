@@ -6,7 +6,7 @@
 
 /* R E C O R D S
  * The page of a reliquary reads its own records: relic.json & nexus.json,
- * served next to index.html (GitHub Pages, or `php pages serve`).
+ * served next to index.html (GitHub Pages, or `php cast serve`).
  * Opened as a file (file://), the browser refuses fetch: serve it.
  * */
 const reliquary = {

@@ -8,8 +8,8 @@
 <meta name="theme-color" content="#090909">
 
 <!-- title -->
-<title>Reliquary — Relic Package Manager</title>
-<meta name="description" content="Reliquary, the Relic Package Manager for Rune. No central registry: the repo is the registry, interconnected by fork.">
+<title>Reliquary — Federated Relic Registry</title>
+<meta name="description" content="Reliquary, the Federated Relic Registry for Rune. A relic is a sealed snapshot of a runite, like a Docker image. No central registry: the repo is the registry, federated by fork.">
 
 <!-- fonts -->
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -535,7 +535,7 @@ footer { padding: 32px 0 28px; border-top: 1px solid var(--glass-line); backgrou
  * the name of the reliquary, big and centered -->
 <header id="top" flex="d:column j:center a:middle">
   <div container text="center">
-    <span class="badge"><span class="dot"></span> Relic Package Manager · Forged through Rune</span>
+    <span class="badge"><span class="dot"></span> Federated Relic Registry · Forged through Rune</span>
     <h1 class="sigil">RELIQUARY</h1>
     <p class="lead">
       A reliquary keeps no relic — it only remembers where each one rests,
@@ -587,7 +587,7 @@ php nexus initiate</pre></div>
       <article class="glass step">
         <span class="number">03</span>
         <h3><i clip="lock"></i> Register</h3>
-        <p>List your relics with their seal, then push. Your registry is what you push.</p>
+        <p>Record your relics — sealed snapshots of your runites — then push. Your registry is what you push.</p>
         <div class="spell"><button class="copy" type="button" aria-label="Copy">copy</button><pre>php relic register
 php relic upgrade
 git push</pre></div>
@@ -598,7 +598,7 @@ git push</pre></div>
       <span>Keep it alive</span>
       <code>php nexus update</code>
       <code>php nexus inspect</code>
-      <code>php pages build</code>
+      <code>php cast build</code>
     </div>
   </div>
 </section>
@@ -611,7 +611,7 @@ git push</pre></div>
     <div class="heading">
       <span class="eyebrow">The records</span>
       <h2>Relics &amp; Nexus</h2>
-      <p>What this reliquary keeps, and the links to the reliquaries beyond it.</p>
+      <p>The relics this reliquary keeps — sealed snapshots of runites — and the links to the reliquaries beyond it.</p>
     </div>
 
     <div class="grid records">
@@ -663,7 +663,7 @@ class ExuraEnvironment{static configure=new Map([["version","1.1.0"],["mode","pr
 
 /* R E C O R D S
  * The page of a reliquary reads its own records: relic.json & nexus.json,
- * served next to index.html (GitHub Pages, or `php pages serve`).
+ * served next to index.html (GitHub Pages, or `php cast serve`).
  * Opened as a file (file://), the browser refuses fetch: serve it.
  * */
 const reliquary = {
