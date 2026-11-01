@@ -11,6 +11,12 @@
           "sha256": "c2ae1f2d5dc536ae78933d39f7f3b12a4504591c4977620c6185654c818e3509",
           "rune": "1.11",
           "ref": "main@eacbec9"
+        },
+        "0.1.1": {
+          "url": "https://raw.githubusercontent.com/devneet-id/how-to-casting/14a44bcd6cec0f5c217c9e93f621144be597d65f/cast.rune",
+          "sha256": "7682882625c64a724f81988992ec73f2d949241268e5117592bbd806857918b2",
+          "rune": "1.20.114",
+          "ref": "main@14a44bc"
         }
       }
     }

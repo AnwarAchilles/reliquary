@@ -53,7 +53,7 @@ function hero(relic, links) {
   hero.store.set('fork', `https://github.com/${reliquary.main}/fork`);
   hero.store.set('relics', relic ? list.length : '–');
   hero.store.set('versions', relic ? list.reduce((sum, item) => sum + Object.keys(item.tags || {}).length, 0) : '–');
-  hero.store.set('forks', links ? Object.keys(links.list || {}).length : '–');
+  hero.store.set('links', links ? Object.keys(links.list || {}).length : '–');
   hero.render();
 }
 
@@ -76,7 +76,7 @@ function relics(record) {
         <div class="record">
           <div class="record-head">
             <h4><a href="${e(relic.repo || 'https://github.com/' + name)}" target="_blank" rel="noopener">${named(name)}</a></h4>
-            <span class="meta">${e(relic.runite || 'cast')}.rune</span>
+            <span class="meta">${tags[versions[0]]?.rune ? 'Rune ' + e(tags[versions[0]].rune) : ''}</span>
           </div>
           ${relic.note ? `<p>${e(relic.note)}</p>` : ''}
           <div class="tags">
@@ -94,15 +94,15 @@ function relics(record) {
 
 
 /* NEXUS
- * nexus.json: the forks of this reliquary, each read once for its relics */
+ * nexus.json: the links of this reliquary (its forks), each read once for its relics */
 function nexus(record) {
   const list = Object.entries(record?.list || {});
-  nexus.store.set('count', record ? `${list.length} nexus${list.length === 1 ? '' : 's'}` : '–');
+  nexus.store.set('count', record ? `${list.length} nexus` : '–');
 
   if (!record) {
     nexus.store.set('list', reliquary.empty('<i clip="warning"></i> nexus.json can not be read.'));
   } else if (!list.length) {
-    nexus.store.set('list', reliquary.empty('No fork mapped yet — <code>php nexus update</code>'));
+    nexus.store.set('list', reliquary.empty('No link yet — <code>php nexus update</code>'));
   } else {
     nexus.store.set('list', list.map(([name, fork], index) => `
       <div class="record">
@@ -115,7 +115,7 @@ function nexus(record) {
   }
   nexus.render();
 
-  // the relics of each fork, from its own relic.json
+  // the relics of each link, from its own relic.json
   list.forEach(async ([name, fork], index) => {
     const owner = String(fork.owner || name.split('/')[0]).toLowerCase();
     const theirs = fork.relic ? await reliquary.read(fork.relic) : null;
