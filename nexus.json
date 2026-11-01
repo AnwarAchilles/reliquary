@@ -1,11 +1,4 @@
 {
-  "main": "devneet-id/reliquary",
-  "list": {
-    "AnwarAchilles/reliquary": {
-      "owner": "AnwarAchilles",
-      "branch": "main",
-      "relic": "https://raw.githubusercontent.com/AnwarAchilles/reliquary/main/relic.json",
-      "nexus": "https://raw.githubusercontent.com/AnwarAchilles/reliquary/main/nexus.json"
-    }
-  }
+  "main": "anwarachilles/reliquary-anwar",
+  "list": {}
 }

@@ -1,37 +1,4 @@
 {
-  "main": "devneet-id/reliquary",
-  "list": {
-    "devneet-id/build-website": {
-      "repo": "https://github.com/devneet-id/build-website",
-      "runite": "cast",
-      "note": "Build a website with HTML, CSS, JS & PHP, bundled into one dist/index.php.",
-      "tags": {
-        "0.1.0": {
-          "url": "https://raw.githubusercontent.com/devneet-id/build-website/cf41baa50f7cffeebcd22e6775279c5103062079/cast.rune",
-          "sha256": "632f4d9e68acc0dfddbb1f940bb88040a059b43b4f22a815da2cd6b37f82eaf3",
-          "rune": "1.20.114",
-          "ref": "main@cf41baa"
-        }
-      }
-    },
-    "devneet-id/how-to-casting": {
-      "repo": "https://github.com/devneet-id/how-to-casting",
-      "runite": "cast",
-      "note": "Learn how to cast: casts, spells, and cast in cast.",
-      "tags": {
-        "0.1.0": {
-          "url": "https://raw.githubusercontent.com/devneet-id/how-to-casting/eacbec916568e4907cccc60efda3fd24df5d228b/cast.rune",
-          "sha256": "c2ae1f2d5dc536ae78933d39f7f3b12a4504591c4977620c6185654c818e3509",
-          "rune": "1.11",
-          "ref": "main@eacbec9"
-        },
-        "0.1.1": {
-          "url": "https://raw.githubusercontent.com/devneet-id/how-to-casting/14a44bcd6cec0f5c217c9e93f621144be597d65f/cast.rune",
-          "sha256": "7682882625c64a724f81988992ec73f2d949241268e5117592bbd806857918b2",
-          "rune": "1.20.114",
-          "ref": "main@14a44bc"
-        }
-      }
-    }
-  }
+  "main": "anwarachilles/reliquary-anwar",
+  "list": {}
 }
