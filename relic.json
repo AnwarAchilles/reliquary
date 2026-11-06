@@ -14,6 +14,19 @@
         }
       }
     },
+    "devneet-id/build-website-exura": {
+      "repo": "https://github.com/devneet-id/build-website-exura",
+      "runite": "cast",
+      "note": "Build a website with Exura: ExuraCSS, ExuraJS & ExuraPHP, bundled into one dist/index.php.",
+      "tags": {
+        "0.1.0": {
+          "url": "https://raw.githubusercontent.com/devneet-id/build-website-exura/fd0e5732c12761a4d7b2da08e0b64d9d016d58fe/cast.rune",
+          "sha256": "2710ee5faa2e48703c7b578fecbf5c14236ebccea070dbc9347e9eb49cf4b338",
+          "rune": "1.20.114",
+          "ref": "main@fd0e573"
+        }
+      }
+    },
     "devneet-id/how-to-casting": {
       "repo": "https://github.com/devneet-id/how-to-casting",
       "runite": "cast",
