@@ -1,2 +1,4 @@
 relic.json merge=ours
 nexus.json merge=ours
+index.html merge=ours
+cast.rune merge=ours

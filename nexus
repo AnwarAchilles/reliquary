@@ -10,8 +10,9 @@
  *
  * Run this script using:
  *   $ php nexus
- *   $ php nexus initiate [--user=<username>]
- *   $ php nexus update
+ *   $ php nexus initiate [--user=<username>] [--local]
+ *   $ php nexus update [--local]
+ * initiate & update commit nexus.json and push it (Specter); --local only saves it.
  *   $ php nexus inspect [--repo=<owner>/<repo>]
  * Every question can be answered with its spell instead (e.g. for GitHub Actions).
  *
@@ -44,6 +45,9 @@ use Rune\Whisper\Manifest as Whisper;
 use Rune\Weaver\Manifest as Weaver;
 use Rune\Chanter\Manifest as Chanter;
 use Rune\Forger\Manifest as Forger;
+use Rune\Cipher\Manifest as Cipher;
+use Rune\Keeper\Manifest as Keeper;
+use Rune\Specter\Manifest as Specter;
 #sentinel-manifest
 
 Aether::ether()::essence()::entity();
@@ -51,6 +55,9 @@ Whisper::ether()::essence()::entity();
 Weaver::ether()::essence()::entity();
 Chanter::ether()::essence()::entity();
 Forger::ether()::essence()::entity();
+Cipher::ether()::essence()::entity();
+Keeper::ether()::essence()::entity();
+Specter::ether()::essence()::entity();
 #sentinel-awaken
 
 
@@ -171,6 +178,43 @@ function nexus_fetch( String $url, Bool $api = false ) {
   return [0, ''];
 }
 
+/* Publish nexus.json: git add, commit and push, cast by Specter.
+ * Only nexus.json is added. --local keeps it on this computer. */
+function nexus_publish( String $action ) {
+  if (Chanter::spell('local')) {
+    nexus_line('info', 'nexus.json is saved, not pushed (--local)');
+    return;
+  }
+  if (!is_dir(AETHER_REPO . '/.git')) {
+    nexus_line('warn', 'Not a git repo: nexus.json is saved, push it yourself');
+    return;
+  }
+  if (trim((string) shell_exec('git status --porcelain -- nexus.json 2>&1')) === '') {
+    nexus_line('info', 'nexus.json has not changed, nothing to push');
+    return;
+  }
+  $message = "feat: $action " . date('Y-m-d H:i');
+  Whisper::echo("{{nl}}{{COLOR-SECONDARY}}git add nexus.json · commit · push{{COLOR-END}}{{nl}}");
+  Specter::cast('git add nexus.json && git commit -m "' . $message . '" && git push', [
+    'blocking'=> true,  // one after another, then back here
+    'visible'=> false,  // in this terminal
+    'exit'=> true,
+    'title'=> 'NEXUS',
+  ]);
+
+  // Specter gives no answer back: ask git what happened
+  $last = trim((string) shell_exec('git log -1 --format=%s 2>&1'));
+  $state = trim((string) shell_exec('git status -sb 2>&1'));
+  $pending = trim((string) shell_exec('git status --porcelain -- nexus.json 2>&1'));
+  if ($pending !== '' || $last !== $message) {
+    nexus_line('fail', 'nexus.json is saved but not committed: git add nexus.json && git commit && git push');
+  }elseif (preg_match('#\[ahead \d+#', strtok($state, "\n"))) {
+    nexus_line('fail', "Committed ($message) but not pushed: git pull --rebase && git push");
+  }else {
+    nexus_line('ok', "nexus.json is pushed · $message");
+  }
+}
+
 /* The relics of a reliquary from its relic.json.
  * Only "<owner>/*" counts: a fork inherits relic.json of its parent until it runs
  * `php relic initiate`, so names of other owners are ignored — nobody can take another name.
@@ -235,6 +279,7 @@ function nexus_chain( Array $self ) {
  */
 Aether::begin();
 Chanter::begin();
+Keeper::begin();
 
 
 /* INITIATE
@@ -242,7 +287,7 @@ Chanter::begin();
  * with <username>/<project folder> as the reliquary.
  * */
 Chanter::cast(
-  arg: 'initiate --user',
+  arg: 'initiate --user --local',
   echo: 'initiate this fork, clean up nexus.json',
   execute: function() {
     // the repo comes from git remote origin; the folder name only when there is none
@@ -271,6 +316,7 @@ Chanter::cast(
     }
     nexus_save(['main'=> $main, 'list'=> []]);
     nexus_line('ok', "nexus.json is ready: the reliquary of $main");
+    nexus_publish('initiate nexus');
       Whisper::echo("{{COLOR-SECONDARY}}   Keep it in step with its parent: php hall sync{{COLOR-END}}{{nl}}");
   }
 );
@@ -281,7 +327,7 @@ Chanter::cast(
  * Each fork is read once to count its relics; its relics stay in its own relic.json.
  * */
 Chanter::cast(
-  arg: 'update',
+  arg: 'update --local',
   echo: 'map the forks of this reliquary in nexus.json',
   execute: function() {
     $self = nexus_self();
@@ -339,6 +385,7 @@ Chanter::cast(
 
     nexus_save(['main'=> $main, 'list'=> $nexus]);
     Whisper::echo("{{nl}}{{COLOR-SUCCESS}}nexus.json{{COLOR-END}}: " . count($nexus) . " fork(s), $problems problem(s){{nl}}");
+    nexus_publish('update nexus');
   }
 );
 
@@ -427,4 +474,5 @@ Chanter::cast(
 
 #sentinel-codex
 Chanter::end();
+Keeper::end();
 Aether::end();

@@ -9,9 +9,10 @@
  *
  * Run this script using:
  *   $ php relic
- *   $ php relic initiate [--user=<username>] [--yes]
- *   $ php relic register [--repo=<repo>/<runite>] [--tag=<tag>] [--note=...]
- *   $ php relic upgrade  [--repo=<repo>] [--tag=<tag>]
+ *   $ php relic initiate [--user=<username>] [--yes] [--local]
+ *   $ php relic register [--repo=<repo>/<runite>] [--tag=<tag>] [--note=...] [--local]
+ *   $ php relic upgrade  [--repo=<repo>] [--tag=<tag>] [--local]
+ * initiate, register & upgrade commit relic.json and push it (Specter); --local only saves it.
  * Every question can be answered with its spell instead (e.g. for GitHub Actions).
  *
  * relic.json:
@@ -43,6 +44,9 @@ use Rune\Whisper\Manifest as Whisper;
 use Rune\Weaver\Manifest as Weaver;
 use Rune\Chanter\Manifest as Chanter;
 use Rune\Forger\Manifest as Forger;
+use Rune\Cipher\Manifest as Cipher;
+use Rune\Keeper\Manifest as Keeper;
+use Rune\Specter\Manifest as Specter;
 #sentinel-manifest
 
 Aether::ether()::essence()::entity();
@@ -50,6 +54,9 @@ Whisper::ether()::essence()::entity();
 Weaver::ether()::essence()::entity();
 Chanter::ether()::essence()::entity();
 Forger::ether()::essence()::entity();
+Cipher::ether()::essence()::entity();
+Keeper::ether()::essence()::entity();
+Specter::ether()::essence()::entity();
 #sentinel-awaken
 
 
@@ -229,6 +236,43 @@ function relic_patch( Array $tags ) {
   return [$last, $prefix . $major . '.' . $minor . '.' . ((int) $patch + 1)];
 }
 
+/* Publish relic.json: git add, commit and push, cast by Specter.
+ * Only relic.json is added. --local keeps it on this computer. */
+function relic_publish( String $action ) {
+  if (Chanter::spell('local')) {
+    relic_line('info', 'relic.json is saved, not pushed (--local)');
+    return;
+  }
+  if (!is_dir(AETHER_REPO . '/.git')) {
+    relic_line('warn', 'Not a git repo: relic.json is saved, push it yourself');
+    return;
+  }
+  if (trim((string) shell_exec('git status --porcelain -- relic.json 2>&1')) === '') {
+    relic_line('info', 'relic.json has not changed, nothing to push');
+    return;
+  }
+  $message = "feat: $action " . date('Y-m-d H:i');
+  Whisper::echo("{{nl}}{{COLOR-SECONDARY}}git add relic.json · commit · push{{COLOR-END}}{{nl}}");
+  Specter::cast('git add relic.json && git commit -m "' . $message . '" && git push', [
+    'blocking'=> true,  // one after another, then back here
+    'visible'=> false,  // in this terminal
+    'exit'=> true,
+    'title'=> 'RELIC',
+  ]);
+
+  // Specter gives no answer back: ask git what happened
+  $last = trim((string) shell_exec('git log -1 --format=%s 2>&1'));
+  $state = trim((string) shell_exec('git status -sb 2>&1'));
+  $pending = trim((string) shell_exec('git status --porcelain -- relic.json 2>&1'));
+  if ($pending !== '' || $last !== $message) {
+    relic_line('fail', 'relic.json is saved but not committed: git add relic.json && git commit && git push');
+  }elseif (preg_match('#\[ahead \d+#', strtok($state, "\n"))) {
+    relic_line('fail', "Committed ($message) but not pushed: git pull --rebase && git push");
+  }else {
+    relic_line('ok', "relic.json is pushed · $message");
+  }
+}
+
 /* Take a version and add it to the tags of a relic (a version never changes once listed).
  * Returns the relic, or null when nothing was added. */
 function relic_add( Array $relic, String $name, String $runite, String $tag, ?String $version ) {
@@ -281,6 +325,7 @@ function relic_add( Array $relic, String $name, String $runite, String $tag, ?St
  */
 Aether::begin();
 Chanter::begin();
+Keeper::begin();
 
 
 /* INITIATE
@@ -288,7 +333,7 @@ Chanter::begin();
  * with <username>/<project folder> as the reliquary.
  * */
 Chanter::cast(
-  arg: 'initiate --user --yes',
+  arg: 'initiate --user --yes --local',
   echo: 'initiate this reliquary, clean up relic.json',
   execute: function() {
     // the repo comes from git remote origin; the folder name only when there is none
@@ -318,6 +363,7 @@ Chanter::cast(
     }
     relic_save(['main'=> $main, 'list'=> []]);
     relic_line('ok', "relic.json is ready: the reliquary of $main");
+    relic_publish('initiate relic');
       Whisper::echo("{{COLOR-SECONDARY}}   Keep it in step with its parent: php hall sync{{COLOR-END}}{{nl}}");
   }
 );
@@ -328,7 +374,7 @@ Chanter::cast(
  * The version comes from a tag, or from main as 0.1.0.
  * */
 Chanter::cast(
-  arg: 'register --repo --tag --note',
+  arg: 'register --repo --tag --note --local',
   echo: 'register a relic in relic.json',
   execute: function() {
     $self = relic_self();
@@ -371,6 +417,7 @@ Chanter::cast(
     ksort($self['list'], SORT_FLAG_CASE | SORT_STRING);
     relic_save($self);
     relic_line('ok', "$name registered");
+    relic_publish('update relic');
   }
 );
 
@@ -380,7 +427,7 @@ Chanter::cast(
  * The old versions stay.
  * */
 Chanter::cast(
-  arg: 'upgrade --repo --tag',
+  arg: 'upgrade --repo --tag --local',
   echo: 'add a new version of a relic',
   execute: function() {
     $self = relic_self();
@@ -428,10 +475,12 @@ Chanter::cast(
     $self['list'][$key] = $relic;
     relic_save($self);
     relic_line('ok', "$key upgraded");
+    relic_publish('update relic');
   }
 );
 
 
 #sentinel-codex
 Chanter::end();
+Keeper::end();
 Aether::end();

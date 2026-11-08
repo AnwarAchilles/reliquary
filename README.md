@@ -71,24 +71,43 @@ If you know Docker, you already know the shape of it:
    php relic initiate
    php nexus initiate
    ```
-4. Register your relics, then push:
+4. Register your relics:
    ```bash
    php relic register
-   git add relic.json nexus.json && git commit -m "feat: my reliquary" && git push
    ```
+
+No `git add`, no `git push`: every cast that writes a record commits **that record only** and pushes it for you — `feat: initiate relic <date time>`, `feat: update relic <date time>`, `feat: update nexus <date time>`. Add `--local` to any of them to only save it on your computer.
 
 Your reliquary is now a registry of its own, linked to its parent: the next `php nexus update` there maps it.
 
+### Your own page
+
+Your fork shows the page of its parent until you make your own. Its source is not in the repo — it is sealed in `cast.rune`, the relic of the `cast` runite. Open it, and `src/` is back:
+
+```bash
+php cast reliquary --relic-runite   # cast.rune → cast + src/
+php cast start                      # build, serve at http://127.0.0.1:8000, rebuild on every change
+```
+
+Shape `src/` as you like, then seal it and push your page:
+
+```bash
+php cast build
+php cast reliquary --runite-relic   # cast + src/ → cast.rune
+git add index.html cast.rune && git commit -m "feat: my page" && git push
+```
+
+Your page is yours: `hall sync` never touches `index.html` or `cast.rune`.
+
 ### Keep in step with your parent
 
-Your parent keeps improving its code — and keeps registering its own relics. Take the code, keep your records:
+Your parent keeps improving its runites — and keeps registering its own relics. Take the runites, keep what is yours:
 
 ```bash
 php hall sync
-git push
 ```
 
-`hall sync` fetches the parent, merges its code, keeps `relic.json` and `nexus.json` as yours, and builds `index.html` again. **Do not use the *Sync fork* button on GitHub**: it does not know your records are yours, and it stops at a conflict in `relic.json`.
+`hall sync` fetches the parent and takes its runites (`relic`, `nexus`, `hall`, `cast`, …), keeps your records (`relic.json`, `nexus.json`) and your page (`index.html`, `cast.rune`) as they are, and pushes. **Do not use the *Sync fork* button on GitHub**: it does not know your records are yours, and it stops at a conflict in `relic.json`.
 
 > **First time?** A fork made before `hall` existed takes it once by hand:
 > ```bash
@@ -111,11 +130,11 @@ A reliquary is kept alive by its owner. Run its casts whenever something changes
 | A relic has a new tag, or `main` moved | `php relic upgrade`    |
 | Someone forked your reliquary         | `php nexus update`     |
 | You want to trust a reliquary         | `php nexus inspect`    |
-| Before you push                       | `php hall analize`     |
+| Before you push                       | `php hall analyze`     |
 | You want to see the whole federation  | `php hall chain`       |
 | Your records changed                  | `php cast build`       |
 
-Then commit and push `relic.json`, `nexus.json` and `index.html` — your registry is what you push.
+Each of these casts commits and pushes what it changed — your registry is what you push. Only `php cast build` leaves `index.html` for you to commit.
 
 ---
 
@@ -127,24 +146,24 @@ Every command asks what it needs. Every question can also be answered with a spe
 
 | Command                  | Spells                                       | Description                                                                 |
 | ------------------------ | -------------------------------------------- | --------------------------------------------------------------------------- |
-| `php relic initiate`     | `--user=<username>` `--yes`                  | Start a clean `relic.json` as `<username>/<project folder>` (the folder name = your repo name).                |
-| `php relic register`     | `--repo=<repo>/<runite>` `--tag=` `--note=`  | Register a relic, e.g. `exuracss/cast` → `cast.rune`. No tag → `main` as `0.1.0`. |
-| `php relic upgrade`      | `--repo=<repo>` `--tag=`                     | Add a new version. No tag → `main` as the next patch (`0.1.0` → `0.1.1`).   |
+| `php relic initiate`     | `--user=<username>` `--yes` `--local`        | Start a clean `relic.json` as `<username>/<project folder>` (the folder name = your repo name).                |
+| `php relic register`     | `--repo=<repo>/<runite>` `--tag=` `--note=` `--local` | Register a relic, e.g. `exuracss/cast` → `cast.rune`. No tag → `main` as `0.1.0`. Commits & pushes `relic.json`. |
+| `php relic upgrade`      | `--repo=<repo>` `--tag=` `--local`           | Add a new version. No tag → `main` as the next patch (`0.1.0` → `0.1.1`). Commits & pushes `relic.json`. |
 
 ### nexus
 
 | Command                  | Spells                                       | Description                                                                 |
 | ------------------------ | -------------------------------------------- | --------------------------------------------------------------------------- |
-| `php nexus initiate`     | `--user=<username>`                          | Start a clean `nexus.json` as `<username>/<project folder>`.                |
-| `php nexus update`       | —                                            | Map every fork of this reliquary into `nexus.json`.                         |
+| `php nexus initiate`     | `--user=<username>` `--local`                | Start a clean `nexus.json` as `<username>/<project folder>`.                |
+| `php nexus update`       | `--local`                                    | Map every fork of this reliquary into `nexus.json`.                         |
 | `php nexus inspect`      | `--repo=<owner>/<repo>`                      | Pick one reliquary on the chain (forks of forks too) and check its seals.   |
 
 ### hall
 
 | Command                  | Spells                                       | Description                                                                 |
 | ------------------------ | -------------------------------------------- | --------------------------------------------------------------------------- |
-| `php hall sync`          | `--from=<owner>/<repo>`                      | Take the code of the parent reliquary, keep your records, build the page again. |
-| `php hall analize`       | `--repo=<repo>`                              | Check this reliquary: its records, its name against `git remote origin`, every seal. |
+| `php hall sync`          | `--from=<owner>/<repo>` `--local`            | Take the runites of the parent reliquary, keep your records & page, push.  |
+| `php hall analyze`       | `--repo=<repo>`                              | Check this reliquary: its records, its name against `git remote origin`, every seal. |
 | `php hall chain`         | `--from=<owner>/<repo>`                      | The whole chain from `devneet-id/reliquary`, nexus by nexus, with its relics. |
 
 ### website
@@ -176,7 +195,7 @@ php cast reliquary --runite-relic   # cast → cast.rune, the snapshot
 git add cast.rune && git commit -m "feat: relic" && git tag 1.0.0 && git push --tags
 ```
 
-Then, in your reliquary:
+Then, in your reliquary — it is recorded and pushed at once:
 
 ```bash
 php relic register --repo=<repo>/cast --tag=1.0.0
@@ -197,7 +216,7 @@ php cast reliquary --relic-runite=<vendor>/<repo>
 3. **The seal is sha256** of the `.rune` when it was listed. `nexus inspect` shows any seal that broke.
 4. **A version from `main` is pinned to its commit.** When `main` moves on, older versions stay whole.
 5. **A fork that has not initiated is silent.** It still holds its parent's records; those names are ignored.
-6. **Your records are yours.** `hall sync` takes the code of your parent, never its records.
+6. **Your records and your page are yours.** `hall sync` takes the runites of your parent, never its records or its page.
 
 ---
 
