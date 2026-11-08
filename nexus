@@ -89,6 +89,19 @@ function nexus_folder() {
   return end($parts);
 }
 
+// the GitHub repo of this project, from .git/config (remote "origin"): [owner, repo] or null
+// the folder name is not trusted: a clone can live in any folder (reliquary-anwar ...)
+function nexus_origin() {
+  $config = @file_get_contents(AETHER_REPO . '/.git/config');
+  if (!$config || !preg_match('#\[remote "origin"\][^\[]*?url\s*=\s*(\S+)#', $config, $match)) {
+    return null;
+  }
+  if (!preg_match('#github\.com[:/]+([^/\s]+)/([^/\s]+?)(?:\.git)?/?$#i', $match[1], $repo)) {
+    return null;
+  }
+  return [$repo[1], $repo[2]];
+}
+
 function nexus_json( String $text ) {
   $data = json_decode($text, true);
   return is_array($data) ? $data : null;
@@ -232,7 +245,9 @@ Chanter::cast(
   arg: 'initiate --user',
   echo: 'initiate this fork, clean up nexus.json',
   execute: function() {
-    $user = nexus_spell('user');
+    // the repo comes from git remote origin; the folder name only when there is none
+    $origin = nexus_origin();
+    $user = nexus_spell('user') ?: ($origin[0] ?? '');
     if ($user === '') {
       $main = (string) (nexus_load()['main'] ?? '');
       if (preg_match('#^([^/]+)/[^/]+$#', $main, $match)) {
@@ -250,9 +265,13 @@ Chanter::cast(
       nexus_line('warn', 'A GitHub username is needed: php nexus initiate --user=<username>');
       return;
     }
-    $main = "$user/" . nexus_folder();
+    $main = "$user/" . ($origin[1] ?? nexus_folder());
+    if ($origin) {
+      nexus_line('info', "git remote origin: {$origin[0]}/{$origin[1]}");
+    }
     nexus_save(['main'=> $main, 'list'=> []]);
     nexus_line('ok', "nexus.json is ready: the reliquary of $main");
+      Whisper::echo("{{COLOR-SECONDARY}}   Keep it in step with its parent: php hall sync{{COLOR-END}}{{nl}}");
   }
 );
 
