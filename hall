@@ -6,7 +6,7 @@
  *
  * Run this script using:
  *   $ php hall
- *   $ php hall sync      [--from=<owner>/<repo>] [--local]   take the code of the parent, keep your records, push
+ *   $ php hall sync      [--from=<owner>/<repo>] [--local]   take the runites of the parent, keep your records & page, push
  *   $ php hall analyze   [--repo=<repo>]           check this reliquary: records, names, every seal
  *   $ php hall chain     [--from=<owner>/<repo>]   the whole chain, nexus by nexus, with its relics
  *
@@ -61,7 +61,8 @@ Specter::ether()::essence()::entity();
 
 const HALL_ROOT = 'devneet-id/reliquary'; // the first reliquary, root of the federation
 const HALL_DEPTH = 10;                    // forks of forks, how deep the chain is followed
-const HALL_RECORDS = ['relic.json', 'nexus.json'];
+const HALL_RECORDS = ['relic.json', 'nexus.json'];      // your records
+const HALL_PAGE = ['index.html', 'cast.rune'];           // your page (cast.rune holds its src/)
 
 // the folder of the reliquary, next to this runite
 function hall_dir() {
@@ -233,13 +234,13 @@ Keeper::begin();
 
 
 /* SYNC
- * Take the code of the parent reliquary, keep your own records.
- * relic.json & nexus.json always stay yours (and index.html is built again),
- * so a fork never fights its parent over the records.
+ * Take the runites of the parent reliquary (relic, nexus, hall, cast, …),
+ * keep what is yours: the records (relic.json, nexus.json) and the page (index.html, cast.rune).
+ * A fork never fights its parent over them.
  * */
 Chanter::cast(
   arg: 'sync --from --local',
-  echo: 'take the code of the parent, keep your records',
+  echo: 'take the runites of the parent, keep your records & page',
   execute: function() {
     $main = hall_main();
     if (!$main) {
@@ -281,12 +282,12 @@ Chanter::cast(
       return;
     }
 
-    // your records, as they are now: they come back whatever the merge does
+    // your records & page, as they are now: they come back whatever the merge does
     $records = [];
-    foreach (HALL_RECORDS as $file) {
+    foreach ([...HALL_RECORDS, ...HALL_PAGE] as $file) {
       $records[$file] = @file_get_contents(hall_dir() . "/$file");
     }
-    hall_git('config merge.ours.driver true'); // .gitattributes: relic.json & nexus.json merge=ours
+    hall_git('config merge.ours.driver true'); // .gitattributes: records & page merge=ours
 
     $url = hall_git_url() . "/$parent" . (preg_match('#^https?://#', hall_git_url()) ? '.git' : '');
     list($code, $out) = hall_git('fetch --quiet ' . escapeshellarg($url) . ' ' . escapeshellarg($branch));
@@ -303,25 +304,25 @@ Chanter::cast(
     if ($code !== 0) {
       list(, $unmerged) = hall_git('diff --name-only --diff-filter=U');
       $unmerged = array_filter(explode("\n", $unmerged));
-      $other = array_diff($unmerged, [...HALL_RECORDS, 'index.html']);
+      $other = array_diff($unmerged, [...HALL_RECORDS, ...HALL_PAGE]);
       if (!$unmerged || $other) {
         hall_git('merge --abort');
         hall_line('fail', 'The code clashes with your own changes: ' . (implode(', ', $other) ?: $out));
         hall_line('info', 'Nothing was changed. Resolve it by hand: git merge FETCH_HEAD');
         return;
       }
-      if (in_array('index.html', $unmerged)) {
-        hall_git('checkout --theirs -- index.html'); // built again below
-      }
     }
 
-    // the records stay yours
+    // the records & page stay yours (a file you did not have stays away)
     foreach ($records as $file => $content) {
       if ($content !== false) {
         file_put_contents(hall_dir() . "/$file", $content);
+        hall_git('add -- ' . escapeshellarg($file));
+      }elseif (is_file(hall_dir() . "/$file")) {
+        hall_git('rm -q --cached -- ' . escapeshellarg($file));
+        unlink(hall_dir() . "/$file");
       }
     }
-    hall_git('add -- ' . implode(' ', array_map('escapeshellarg', [...HALL_RECORDS, 'index.html'])));
     list(, $merging) = hall_git('rev-parse -q --verify MERGE_HEAD');
     if ($merging !== '') {
       hall_git('commit --no-edit');
@@ -330,18 +331,8 @@ Chanter::cast(
     }
     list(, $changed) = hall_git('diff --name-only ' . escapeshellarg($head) . ' HEAD');
     hall_line('ok', "The code of $parent is taken" . ($changed ? ': ' . str_replace("\n", ', ', $changed) : ''));
-    hall_line('ok', 'relic.json & nexus.json are kept as yours');
+    hall_line('ok', 'relic.json, nexus.json, index.html & cast.rune are kept as yours');
 
-    // the page follows the new code
-    if (is_file(hall_dir() . '/cast')) {
-      $output = [];
-      exec(escapeshellarg(PHP_BINARY) . ' ' . escapeshellarg(hall_dir() . '/cast') . ' build 2>&1', $output, $code);
-      if ($code === 0 && hall_git('status --porcelain -- index.html')[1] !== '') {
-        hall_git('add -- index.html');
-        hall_git('commit -m ' . escapeshellarg('chore(sync): build the page again'));
-        hall_line('ok', 'index.html is built again');
-      }
-    }
     hall_push();
   }
 );

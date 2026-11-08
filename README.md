@@ -80,15 +80,34 @@ No `git add`, no `git push`: every cast that writes a record commits **that reco
 
 Your reliquary is now a registry of its own, linked to its parent: the next `php nexus update` there maps it.
 
+### Your own page
+
+Your fork shows the page of its parent until you make your own. Its source is not in the repo — it is sealed in `cast.rune`, the relic of the `cast` runite. Open it, and `src/` is back:
+
+```bash
+php cast reliquary --relic-runite   # cast.rune → cast + src/
+php cast start                      # build, serve at http://127.0.0.1:8000, rebuild on every change
+```
+
+Shape `src/` as you like, then seal it and push your page:
+
+```bash
+php cast build
+php cast reliquary --runite-relic   # cast + src/ → cast.rune
+git add index.html cast.rune && git commit -m "feat: my page" && git push
+```
+
+Your page is yours: `hall sync` never touches `index.html` or `cast.rune`.
+
 ### Keep in step with your parent
 
-Your parent keeps improving its code — and keeps registering its own relics. Take the code, keep your records:
+Your parent keeps improving its runites — and keeps registering its own relics. Take the runites, keep what is yours:
 
 ```bash
 php hall sync
 ```
 
-`hall sync` fetches the parent, merges its code, keeps `relic.json` and `nexus.json` as yours, builds `index.html` again, and pushes. **Do not use the *Sync fork* button on GitHub**: it does not know your records are yours, and it stops at a conflict in `relic.json`.
+`hall sync` fetches the parent and takes its runites (`relic`, `nexus`, `hall`, `cast`, …), keeps your records (`relic.json`, `nexus.json`) and your page (`index.html`, `cast.rune`) as they are, and pushes. **Do not use the *Sync fork* button on GitHub**: it does not know your records are yours, and it stops at a conflict in `relic.json`.
 
 > **First time?** A fork made before `hall` existed takes it once by hand:
 > ```bash
@@ -143,7 +162,7 @@ Every command asks what it needs. Every question can also be answered with a spe
 
 | Command                  | Spells                                       | Description                                                                 |
 | ------------------------ | -------------------------------------------- | --------------------------------------------------------------------------- |
-| `php hall sync`          | `--from=<owner>/<repo>` `--local`            | Take the code of the parent reliquary, keep your records, build the page again, push. |
+| `php hall sync`          | `--from=<owner>/<repo>` `--local`            | Take the runites of the parent reliquary, keep your records & page, push.  |
 | `php hall analyze`       | `--repo=<repo>`                              | Check this reliquary: its records, its name against `git remote origin`, every seal. |
 | `php hall chain`         | `--from=<owner>/<repo>`                      | The whole chain from `devneet-id/reliquary`, nexus by nexus, with its relics. |
 
@@ -197,7 +216,7 @@ php cast reliquary --relic-runite=<vendor>/<repo>
 3. **The seal is sha256** of the `.rune` when it was listed. `nexus inspect` shows any seal that broke.
 4. **A version from `main` is pinned to its commit.** When `main` moves on, older versions stay whole.
 5. **A fork that has not initiated is silent.** It still holds its parent's records; those names are ignored.
-6. **Your records are yours.** `hall sync` takes the code of your parent, never its records.
+6. **Your records and your page are yours.** `hall sync` takes the runites of your parent, never its records or its page.
 
 ---
 

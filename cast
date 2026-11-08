@@ -11,6 +11,7 @@
  *   $ php cast
  *   $ php cast build
  *   $ php cast start   (build, then serve & watch)
+ *   $ php cast publish (commit index.html & cast.rune, push)
  */
 require_once __DIR__ . '/vendor/autoload.php';
 
@@ -70,6 +71,11 @@ Chanter::cast(
   arg: 'build',
   echo: 'bundling to website applications',
   execute: function() {
+    // no source, no page: an empty build would replace index.html
+    if (!is_file(__DIR__ . '/src/index.html')) {
+      Whisper::echo("{{COLOR-WARNING}}{{ICON-WARNING}}{{COLOR-END}} src/ is not here: index.html is kept as it is{{nl}}");
+      return;
+    }
     // create crafting environment
     Crafter::item('landing-pages', function() {
       // set seeds
@@ -79,7 +85,7 @@ Chanter::cast(
       
       // set multiple shards with Forger
       Forger::scan('src/exura/', function($item) {
-        Crafter::shard($item->target);
+        Crafter::shard(preg_replace('#[\\\\/]+#', '/', $item->target)); // src/exura/\exura.css (Windows) → src/exura/exura.css
       });
     
       // set shards one by one
@@ -144,6 +150,48 @@ Chanter::cast(
       'title'=> 'RUNE:: Observer Directories'
     ]);
     // all of specter.cast is non-blocking execution
+  }
+);
+
+
+/* PUBLISH
+ * todo commit your page and push it, cast by Specter
+ * [i]INFO: only index.html & cast.rune are added
+ *  */
+Chanter::cast(
+  arg: 'publish',
+  echo: 'commit your page (index.html, cast.rune) and push it',
+  execute: function() {
+    if (!is_dir(__DIR__ . '/.git')) {
+      Whisper::echo("{{COLOR-WARNING}}{{ICON-WARNING}}{{COLOR-END}} Not a git repo: push your page yourself{{nl}}");
+      return;
+    }
+    $files = array_values(array_filter(['index.html', 'cast.rune'], fn($file) => is_file(__DIR__ . "/$file")));
+    $list = implode(' ', $files);
+    if (!$files || trim((string) shell_exec("git status --porcelain -- $list 2>&1")) === '') {
+      Whisper::echo("{{COLOR-SECONDARY}}{{ICON-INFO}}{{COLOR-END}} Your page has not changed, nothing to push{{nl}}");
+      return;
+    }
+    $message = 'feat: update page ' . date('Y-m-d H:i');
+    Whisper::echo("{{nl}}{{COLOR-SECONDARY}}git add $list · commit · push{{COLOR-END}}{{nl}}");
+    Specter::cast("git add $list && git commit -m \"$message\" && git push", [
+      'blocking'=> true,  // one after another, then back here
+      'visible'=> false,  // in this terminal
+      'exit'=> true,
+      'title'=> 'PUBLISH',
+    ]);
+
+    // Specter gives no answer back: ask git what happened
+    $last = trim((string) shell_exec('git log -1 --format=%s 2>&1'));
+    $state = trim((string) shell_exec('git status -sb 2>&1'));
+    $pending = trim((string) shell_exec("git status --porcelain -- $list 2>&1"));
+    if ($pending !== '' || $last !== $message) {
+      Whisper::echo("{{COLOR-DANGER}}{{ICON-DANGER}}{{COLOR-END}} Your page is not committed: git add $list && git commit && git push{{nl}}");
+    }elseif (preg_match('#\[ahead \d+#', strtok($state, "\n"))) {
+      Whisper::echo("{{COLOR-DANGER}}{{ICON-DANGER}}{{COLOR-END}} Committed ($message) but not pushed: git pull --rebase && git push{{nl}}");
+    }else {
+      Whisper::echo("{{COLOR-SUCCESS}}{{ICON-SUCCESS}}{{COLOR-END}} Your page is pushed · $message{{nl}}");
+    }
   }
 );
 
