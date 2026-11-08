@@ -66,7 +66,7 @@ If you know Docker, you already know the shape of it:
    ```bash
    composer install
    ```
-3. Your fork still holds the records of its parent. Make them yours:
+3. Your fork still holds the records of its parent. Make them yours — the name is read from `git remote origin`, whatever your folder is called:
    ```bash
    php relic initiate
    php nexus initiate
@@ -79,6 +79,25 @@ If you know Docker, you already know the shape of it:
 
 Your reliquary is now a registry of its own, linked to its parent: the next `php nexus update` there maps it.
 
+### Keep in step with your parent
+
+Your parent keeps improving its code — and keeps registering its own relics. Take the code, keep your records:
+
+```bash
+php hall sync
+git push
+```
+
+`hall sync` fetches the parent, merges its code, keeps `relic.json` and `nexus.json` as yours, and builds `index.html` again. **Do not use the *Sync fork* button on GitHub**: it does not know your records are yours, and it stops at a conflict in `relic.json`.
+
+> **First time?** A fork made before `hall` existed takes it once by hand:
+> ```bash
+> git fetch https://github.com/devneet-id/reliquary.git main
+> git checkout FETCH_HEAD -- hall .gitattributes
+> git commit -m "chore: take hall"
+> php hall sync
+> ```
+
 ---
 
 ## Maintaining Your Reliquary
@@ -87,10 +106,13 @@ A reliquary is kept alive by its owner. Run its casts whenever something changes
 
 | When                                  | Cast                   |
 | ------------------------------------- | ---------------------- |
+| Your parent changed                   | `php hall sync`        |
 | You publish a new relic               | `php relic register`   |
 | A relic has a new tag, or `main` moved | `php relic upgrade`    |
 | Someone forked your reliquary         | `php nexus update`     |
 | You want to trust a reliquary         | `php nexus inspect`    |
+| Before you push                       | `php hall analize`     |
+| You want to see the whole federation  | `php hall chain`       |
 | Your records changed                  | `php cast build`       |
 
 Then commit and push `relic.json`, `nexus.json` and `index.html` — your registry is what you push.
@@ -116,6 +138,14 @@ Every command asks what it needs. Every question can also be answered with a spe
 | `php nexus initiate`     | `--user=<username>`                          | Start a clean `nexus.json` as `<username>/<project folder>`.                |
 | `php nexus update`       | —                                            | Map every fork of this reliquary into `nexus.json`.                         |
 | `php nexus inspect`      | `--repo=<owner>/<repo>`                      | Pick one reliquary on the chain (forks of forks too) and check its seals.   |
+
+### hall
+
+| Command                  | Spells                                       | Description                                                                 |
+| ------------------------ | -------------------------------------------- | --------------------------------------------------------------------------- |
+| `php hall sync`          | `--from=<owner>/<repo>`                      | Take the code of the parent reliquary, keep your records, build the page again. |
+| `php hall analize`       | `--repo=<repo>`                              | Check this reliquary: its records, its name against `git remote origin`, every seal. |
+| `php hall chain`         | `--from=<owner>/<repo>`                      | The whole chain from `devneet-id/reliquary`, nexus by nexus, with its relics. |
 
 ### website
 
@@ -167,6 +197,7 @@ php cast reliquary --relic-runite=<vendor>/<repo>
 3. **The seal is sha256** of the `.rune` when it was listed. `nexus inspect` shows any seal that broke.
 4. **A version from `main` is pinned to its commit.** When `main` moves on, older versions stay whole.
 5. **A fork that has not initiated is silent.** It still holds its parent's records; those names are ignored.
+6. **Your records are yours.** `hall sync` takes the code of your parent, never its records.
 
 ---
 
