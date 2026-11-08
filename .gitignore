@@ -1,3 +1,5 @@
-.echoes
-/@liberations/
-/vendor/
+# rune (sentinel)
+vendor/
+.echoes/
+src/
+# /rune
