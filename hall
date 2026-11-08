@@ -1,0 +1,492 @@
+#!/usr/bin/env php
+<?php
+/*
+ * RELIQUARY · HALL ✦
+ * Keeping a reliquary whole: in step with its parent, its relics valid, its chain in sight.
+ *
+ * Run this script using:
+ *   $ php hall
+ *   $ php hall sync      [--from=<owner>/<repo>]   take the code of the parent, keep your records
+ *   $ php hall analize   [--repo=<repo>]           check this reliquary: records, names, every seal
+ *   $ php hall chain     [--from=<owner>/<repo>]   the whole chain, nexus by nexus, with its relics
+ *
+ * Spells for tests (point them at a fake GitHub):
+ *   --api=<url>   the GitHub API          (default https://api.github.com)
+ *   --raw=<url>   raw files               (default https://raw.githubusercontent.com)
+ *   --git=<url>   where repos are fetched (default https://github.com)
+ * A GITHUB_TOKEN environment variable is sent to the API when it is set.
+ */
+require_once __DIR__ . '/vendor/autoload.php';
+
+
+
+/**
+ * I N V O C A T I O N
+ *
+ * Step 1 — Summon the runes:
+ * Import each module's manifest.
+ *
+ * Step 2 — Channel the energy:
+ * Initialize ether, essence, and entity.
+ *
+ * Note: Keep #sentinel markers if you're using Sentinel support.
+ */
+use Rune\Aether\Manifest as Aether;
+use Rune\Whisper\Manifest as Whisper;
+use Rune\Weaver\Manifest as Weaver;
+use Rune\Chanter\Manifest as Chanter;
+use Rune\Forger\Manifest as Forger;
+#sentinel-manifest
+
+Aether::ether()::essence()::entity();
+Whisper::ether()::essence()::entity();
+Weaver::ether()::essence()::entity();
+Chanter::ether()::essence()::entity();
+Forger::ether()::essence()::entity();
+#sentinel-awaken
+
+
+
+/**
+ * H A L L
+ *
+ * The logic of this runite. It stands alone: relic and nexus have their own.
+ */
+
+const HALL_ROOT = 'devneet-id/reliquary'; // the first reliquary, root of the federation
+const HALL_DEPTH = 10;                    // forks of forks, how deep the chain is followed
+const HALL_RECORDS = ['relic.json', 'nexus.json'];
+
+// the folder of the reliquary, next to this runite
+function hall_dir() {
+  return __DIR__;
+}
+
+// a spell with a value, or its default (a spell without a value is '1')
+function hall_spell( String $key, String $default = '' ) {
+  $value = Chanter::spell($key);
+  return ($value === false || $value === '' || $value === '1') ? $default : trim((string) $value);
+}
+
+function hall_api() { return rtrim(hall_spell('api', 'https://api.github.com'), '/'); }
+function hall_raw() { return rtrim(hall_spell('raw', 'https://raw.githubusercontent.com'), '/'); }
+function hall_git_url() { return rtrim(hall_spell('git', 'https://github.com'), '/'); }
+
+function hall_line( String $state, String $text ) {
+  $color = ['ok'=> 'SUCCESS', 'warn'=> 'WARNING', 'fail'=> 'DANGER', 'info'=> 'SECONDARY'][$state];
+  $icon = ['ok'=> 'SUCCESS', 'warn'=> 'WARNING', 'fail'=> 'DANGER', 'info'=> 'INFO'][$state];
+  Whisper::echo("{{COLOR-$color}}{{ICON-$icon}}{{COLOR-END}} $text{{nl}}");
+}
+
+function hall_json( String $text ) {
+  $data = json_decode($text, true);
+  return is_array($data) ? $data : null;
+}
+
+function hall_load( String $file ) {
+  return hall_json((string) @file_get_contents(hall_dir() . "/$file"));
+}
+
+// the GitHub repo of this project, from .git/config (remote "origin"): [owner, repo] or null
+function hall_origin() {
+  $config = @file_get_contents(hall_dir() . '/.git/config');
+  if (!$config || !preg_match('#\[remote "origin"\][^\[]*?url\s*=\s*(\S+)#', $config, $match)) {
+    return null;
+  }
+  if (!preg_match('#github\.com[:/]+([^/\s]+)/([^/\s]+?)(?:\.git)?/?$#i', $match[1], $repo)) {
+    return null;
+  }
+  return [$repo[1], $repo[2]];
+}
+
+// the name of this reliquary: "main" of relic.json
+function hall_main() {
+  $main = (string) (hall_load('relic.json')['main'] ?? '');
+  if (!preg_match('#^[^/]+/[^/]+$#', $main)) {
+    hall_line('warn', 'relic.json has no "main", run: php relic initiate');
+    return null;
+  }
+  return $main;
+}
+
+// run git in the reliquary: [exit code, output]
+function hall_git( String $arguments ) {
+  $output = [];
+  $code = 1;
+  exec('git -C ' . escapeshellarg(hall_dir()) . " $arguments 2>&1", $output, $code);
+  return [$code, trim(implode("\n", $output))];
+}
+
+// GET a url: [status, body]; status 0 = can not be reached
+function hall_fetch( String $url, Bool $api = false ) {
+  $headers = ['User-Agent: rune-reliquary'];
+  if ($api) {
+    $headers[] = 'Accept: application/vnd.github+json';
+    if (getenv('GITHUB_TOKEN')) {
+      $headers[] = 'Authorization: Bearer ' . getenv('GITHUB_TOKEN');
+    }
+  }
+  if (function_exists('curl_init')) {
+    $curl = curl_init($url);
+    curl_setopt_array($curl, [
+      CURLOPT_RETURNTRANSFER=> true,
+      CURLOPT_FOLLOWLOCATION=> true,
+      CURLOPT_TIMEOUT=> 30,
+      CURLOPT_HTTPHEADER=> $headers,
+    ]);
+    $body = curl_exec($curl);
+    $status = (int) curl_getinfo($curl, CURLINFO_RESPONSE_CODE);
+    curl_close($curl);
+    return [$body === false ? 0 : $status, $body === false ? '' : $body];
+  }
+  if (ini_get('allow_url_fopen')) {
+    $context = stream_context_create(['http'=> [
+      'timeout'=> 30,
+      'header'=> implode("\r\n", $headers),
+      'follow_location'=> 1,
+      'ignore_errors'=> true,
+    ]]);
+    $body = @file_get_contents($url, false, $context);
+    $status = 0;
+    foreach ($http_response_header ?? [] as $line) {
+      if (preg_match('#^HTTP/\S+\s+(\d{3})#', $line, $match)) {
+        $status = (int) $match[1]; // the last status wins (after redirects)
+      }
+    }
+    return [$body === false ? 0 : $status, $body === false ? '' : $body];
+  }
+  hall_line('fail', 'PHP can not go online: enable curl (or allow_url_fopen) in php.ini');
+  return [0, ''];
+}
+
+// the relics of a record that belong to its owner ("<owner>/*" only)
+function hall_relics( Mixed $record, String $owner ) {
+  $relics = [];
+  foreach ((array) ($record['list'] ?? []) as $name => $relic) {
+    if (strcasecmp(explode('/', (string) $name)[0], $owner) === 0 && is_array($relic) && !empty($relic['tags'])) {
+      $relics[(string) $name] = $relic;
+    }
+  }
+  return $relics;
+}
+
+// download one version and read it: [header, rune version, sha256] or a problem string
+function hall_relic( String $url ) {
+  list($status, $body) = hall_fetch($url);
+  if ($status !== 200) {
+    return "can not be fetched (HTTP $status)";
+  }
+  if (strpos($body, '[ᚱᚾ]') === false) {
+    return 'not a relic (.rune)';
+  }
+  $header = preg_match('#\[ᚱᚾ\] R E L I C#u', $body) ? 'relic' : (preg_match('#\[ᚱᚾ\] A R T E F A C T#u', $body) ? 'artefact' : '?');
+  preg_match('#::version=([0-9.]+)#', $body, $match);
+  return [$header, $match[1] ?? null, hash('sha256', $body)];
+}
+
+// newest first
+function hall_versions( Array $tags ) {
+  $keys = array_map('strval', array_keys($tags));
+  usort($keys, fn($a, $b) => version_compare(ltrim($b, 'v'), ltrim($a, 'v')));
+  return $keys;
+}
+
+
+
+/**
+ * I N C A N T A T I O N
+ *
+ * This is your working space.
+ * Use begin() and end() to define the active logic scope.
+ */
+Aether::begin();
+Chanter::begin();
+
+
+/* SYNC
+ * Take the code of the parent reliquary, keep your own records.
+ * relic.json & nexus.json always stay yours (and index.html is built again),
+ * so a fork never fights its parent over the records.
+ * */
+Chanter::cast(
+  arg: 'sync --from',
+  echo: 'take the code of the parent, keep your records',
+  execute: function() {
+    $main = hall_main();
+    if (!$main) {
+      return;
+    }
+    list($code) = hall_git('rev-parse --is-inside-work-tree');
+    if ($code !== 0) {
+      hall_line('fail', 'This reliquary is not a git repo (git init, or clone your fork)');
+      return;
+    }
+
+    // the parent: --from, or the repo this one was forked from (asked by its git remote origin)
+    $origin = hall_origin();
+    $self = $origin ? "{$origin[0]}/{$origin[1]}" : $main;
+    $parent = hall_spell('from');
+    $branch = 'main';
+    if ($parent === '') {
+      list($status, $body) = hall_fetch(hall_api() . "/repos/$self", true);
+      $repo = $status === 200 ? hall_json($body) : null;
+      if ($repo && !empty($repo['parent']['full_name'])) {
+        $parent = $repo['parent']['full_name'];
+        $branch = $repo['parent']['default_branch'] ?? 'main';
+      }elseif ($repo) {
+        hall_line('info', "$self is not a fork: it has no parent to sync from");
+        return;
+      }elseif (strcasecmp($self, HALL_ROOT) !== 0) {
+        $parent = HALL_ROOT;
+        hall_line('warn', "The parent of $self can not be read (HTTP $status), taking " . HALL_ROOT . ' (or give --from=<owner>/<repo>)');
+      }else {
+        hall_line('info', HALL_ROOT . ' is the root: it has no parent to sync from');
+        return;
+      }
+    }
+    Whisper::echo("{{nl}}{{bold}}Sync{{end}} $self ← $parent{{nl}}{{nl}}");
+
+    list($code, $out) = hall_git('status --porcelain --untracked-files=no');
+    if ($code !== 0 || $out !== '') {
+      hall_line('fail', 'There are changes not committed yet: commit (or stash) them first');
+      return;
+    }
+
+    // your records, as they are now: they come back whatever the merge does
+    $records = [];
+    foreach (HALL_RECORDS as $file) {
+      $records[$file] = @file_get_contents(hall_dir() . "/$file");
+    }
+    hall_git('config merge.ours.driver true'); // .gitattributes: relic.json & nexus.json merge=ours
+
+    $url = hall_git_url() . "/$parent" . (preg_match('#^https?://#', hall_git_url()) ? '.git' : '');
+    list($code, $out) = hall_git('fetch --quiet ' . escapeshellarg($url) . ' ' . escapeshellarg($branch));
+    if ($code !== 0) {
+      hall_line('fail', "$parent can not be fetched: $out");
+      return;
+    }
+    list(, $head) = hall_git('rev-parse HEAD');
+    list($code, $out) = hall_git('merge --no-edit -m ' . escapeshellarg("chore(sync): take the code of $parent") . ' FETCH_HEAD');
+    if ($code === 0 && stripos($out, 'Already up to date') !== false) {
+      hall_line('ok', "Already in step with $parent");
+      return;
+    }
+    if ($code !== 0) {
+      list(, $unmerged) = hall_git('diff --name-only --diff-filter=U');
+      $unmerged = array_filter(explode("\n", $unmerged));
+      $other = array_diff($unmerged, [...HALL_RECORDS, 'index.html']);
+      if (!$unmerged || $other) {
+        hall_git('merge --abort');
+        hall_line('fail', 'The code clashes with your own changes: ' . (implode(', ', $other) ?: $out));
+        hall_line('info', 'Nothing was changed. Resolve it by hand: git merge FETCH_HEAD');
+        return;
+      }
+      if (in_array('index.html', $unmerged)) {
+        hall_git('checkout --theirs -- index.html'); // built again below
+      }
+    }
+
+    // the records stay yours
+    foreach ($records as $file => $content) {
+      if ($content !== false) {
+        file_put_contents(hall_dir() . "/$file", $content);
+      }
+    }
+    hall_git('add -- ' . implode(' ', array_map('escapeshellarg', [...HALL_RECORDS, 'index.html'])));
+    list(, $merging) = hall_git('rev-parse -q --verify MERGE_HEAD');
+    if ($merging !== '') {
+      hall_git('commit --no-edit');
+    }elseif (hall_git('diff --cached --quiet')[0] !== 0) {
+      hall_git('commit -m ' . escapeshellarg('chore(sync): keep own records'));
+    }
+    list(, $changed) = hall_git('diff --name-only ' . escapeshellarg($head) . ' HEAD');
+    hall_line('ok', "The code of $parent is taken" . ($changed ? ': ' . str_replace("\n", ', ', $changed) : ''));
+    hall_line('ok', 'relic.json & nexus.json are kept as yours');
+
+    // the page follows the new code
+    if (is_file(hall_dir() . '/cast')) {
+      $output = [];
+      exec(escapeshellarg(PHP_BINARY) . ' ' . escapeshellarg(hall_dir() . '/cast') . ' build 2>&1', $output, $code);
+      if ($code === 0 && hall_git('status --porcelain -- index.html')[1] !== '') {
+        hall_git('add -- index.html');
+        hall_git('commit -m ' . escapeshellarg('chore(sync): build the page again'));
+        hall_line('ok', 'index.html is built again');
+      }
+    }
+    Whisper::echo("{{nl}}Push it when you are ready: {{bold}}git push{{end}}{{nl}}");
+  }
+);
+
+
+/* ANALIZE
+ * Check this reliquary: its records, its name, and every version of every relic
+ * (reachable, a relic, the seal unchanged).
+ * */
+Chanter::cast(
+  arg: 'analize --repo',
+  echo: 'check this reliquary, its names and every seal',
+  execute: function() {
+    $count = ['ok'=> 0, 'warn'=> 0, 'fail'=> 0];
+    $say = function( String $state, String $text ) use (&$count) {
+      hall_line($state, $text);
+      $count[$state === 'info' ? 'ok' : $state]++;
+    };
+
+    Whisper::echo("{{nl}}{{bold}}Records{{end}}{{nl}}");
+    $relic = hall_load('relic.json');
+    $nexus = hall_load('nexus.json');
+    $main = (string) ($relic['main'] ?? '');
+    if (!$relic || !preg_match('#^[^/]+/[^/]+$#', $main) || !is_array($relic['list'] ?? null)) {
+      $say('fail', 'relic.json is not a reliquary record (run: php relic initiate)');
+      return;
+    }
+    $say('ok', "relic.json · $main");
+    if (!$nexus || !is_array($nexus['list'] ?? null)) {
+      $say('fail', 'nexus.json is not a reliquary record (run: php nexus initiate)');
+    }elseif (strcasecmp((string) ($nexus['main'] ?? ''), $main) !== 0) {
+      $say('fail', "nexus.json is the reliquary of " . ($nexus['main'] ?? '?') . ", relic.json of $main (run: php nexus initiate)");
+    }else {
+      $say('ok', 'nexus.json · ' . count($nexus['list']) . ' link(s)');
+    }
+    $origin = hall_origin();
+    if (!$origin) {
+      $say('warn', 'No git remote origin on GitHub: the name can not be checked');
+    }elseif (strcasecmp("{$origin[0]}/{$origin[1]}", $main) !== 0) {
+      $say('fail', "\"main\" is $main, but git remote origin is {$origin[0]}/{$origin[1]} (run: php relic initiate & php nexus initiate)");
+    }else {
+      $say('ok', "git remote origin · {$origin[0]}/{$origin[1]}");
+    }
+
+    $owner = explode('/', $main)[0];
+    $only = hall_spell('repo');
+    if ($only !== '' && strpos($only, '/') === false) {
+      $only = "$owner/$only";
+    }
+    Whisper::echo("{{nl}}{{bold}}Relics{{end}}{{nl}}");
+    $seen = 0;
+    foreach ($relic['list'] as $name => $item) {
+      $name = (string) $name;
+      if ($only !== '' && strcasecmp($name, $only) !== 0) {
+        continue;
+      }
+      $seen++;
+      if (strcasecmp(explode('/', $name)[0], $owner) !== 0) {
+        $say('fail', "$name · not $owner/*: other reliquaries ignore it");
+        continue;
+      }
+      if (!is_array($item) || empty($item['tags']) || !is_array($item['tags'])) {
+        $say('fail', "$name · has no version");
+        continue;
+      }
+      Whisper::echo("{{COLOR-INFO}}♦{{COLOR-END}} {{bold}}$name{{end}} · " . ($item['runite'] ?? 'cast') . ".rune{{nl}}");
+      foreach (hall_versions($item['tags']) as $version) {
+        $tag = $item['tags'][$version];
+        $label = "  $version" . (!empty($tag['ref']) ? " · {$tag['ref']}" : '');
+        if (empty($tag['url']) || empty($tag['sha256'])) {
+          $say('fail', "$label: no url or seal");
+          continue;
+        }
+        $read = hall_relic((string) $tag['url']);
+        if (is_string($read)) {
+          $say('fail', "$label: $read");
+          continue;
+        }
+        list($header, $rune, $sha256) = $read;
+        if (!hash_equals(strtolower((string) $tag['sha256']), $sha256)) {
+          $say('fail', "$label: the seal is broken (sha256)");
+          continue;
+        }
+        $notes = [];
+        if ($header === 'artefact') {
+          $notes[] = 'an older relic (A R T E F A C T)';
+        }
+        if ($rune && !empty($tag['rune']) && $rune !== (string) $tag['rune']) {
+          $notes[] = "Rune $rune, recorded as {$tag['rune']}";
+        }
+        if (preg_match('#/(main|master)/#', (string) $tag['url'])) {
+          $notes[] = 'points to a branch, the seal can break';
+        }
+        $say($notes ? 'warn' : 'ok', "$label · Rune " . ($rune ?? '?') . ($notes ? ' · ' . implode(' · ', $notes) : ''));
+      }
+    }
+    if (!$seen) {
+      hall_line('info', $only !== '' ? "$only is not registered" : 'No relic yet');
+    }
+
+    Whisper::echo("{{nl}}{$count['ok']} valid, {$count['warn']} warning(s), {$count['fail']} invalid{{nl}}");
+  }
+);
+
+
+/* CHAIN
+ * The whole chain from the root: every reliquary, nexus by nexus,
+ * with its relics, as a tree.
+ * */
+Chanter::cast(
+  arg: 'chain --from',
+  echo: 'the whole chain, nexus by nexus, with its relics',
+  execute: function() {
+    $self = (string) (hall_load('relic.json')['main'] ?? '');
+    $root = hall_spell('from', HALL_ROOT);
+    $raw = hall_raw();
+    $seen = [];
+    $total = ['reliquary'=> 0, 'relic'=> 0];
+
+    // the records of one reliquary: local when it is this one, raw otherwise
+    $records = function( String $repo, ?String $relicUrl, ?String $nexusUrl ) use ($self, $raw) {
+      if ($self !== '' && strcasecmp($repo, $self) === 0) {
+        return [hall_load('relic.json'), hall_load('nexus.json')];
+      }
+      list($s1, $b1) = hall_fetch($relicUrl ?: "$raw/$repo/main/relic.json");
+      list($s2, $b2) = hall_fetch($nexusUrl ?: "$raw/$repo/main/nexus.json");
+      return [$s1 === 200 ? hall_json($b1) : null, $s2 === 200 ? hall_json($b2) : null];
+    };
+
+    $walk = function( String $repo, String $owner, ?String $relicUrl, ?String $nexusUrl, String $prefix, Bool $last, Int $depth ) use (&$walk, &$seen, &$total, $records, $self) {
+      $branch = $depth === 0 ? '' : ($last ? '└── ' : '├── ');
+      $mark = ($self !== '' && strcasecmp($repo, $self) === 0) ? ' {{COLOR-SUCCESS}}← you{{COLOR-END}}' : '';
+      if (isset($seen[strtolower($repo)])) {
+        Whisper::echo("$prefix$branch{{COLOR-SECONDARY}}◇ $repo (already shown){{COLOR-END}}{{nl}}");
+        return;
+      }
+      $seen[strtolower($repo)] = true;
+      $total['reliquary']++;
+      list($relic, $nexus) = $records($repo, $relicUrl, $nexusUrl);
+      $relics = $relic ? hall_relics($relic, $owner) : [];
+      $links = ($nexus && $depth < HALL_DEPTH) ? (array) ($nexus['list'] ?? []) : [];
+      $total['relic'] += count($relics);
+
+      $state = $relic ? count($relics) . ' relic(s) · ' . count($links) . ' link(s)' : 'not initiated';
+      Whisper::echo("$prefix$branch{{COLOR-INFO}}◆{{COLOR-END}} {{bold}}$repo{{end}} {{COLOR-SECONDARY}}$state{{COLOR-END}}$mark{{nl}}");
+
+      $inner = $prefix . ($depth === 0 ? '' : ($last ? '    ' : '│   '));
+      $children = count($relics) + count($links);
+      $index = 0;
+      foreach ($relics as $name => $item) {
+        $index++;
+        $versions = hall_versions($item['tags']);
+        $rune = $item['tags'][$versions[0]]['rune'] ?? null;
+        Whisper::echo($inner . ($index === $children ? '└── ' : '├── ') . "• $name {{COLOR-SUCCESS}}" . implode(', ', $versions) . "{{COLOR-END}}" . ($rune ? " {{COLOR-SECONDARY}}Rune $rune{{COLOR-END}}" : '') . "{{nl}}");
+      }
+      foreach ($links as $full_name => $link) {
+        $index++;
+        if (!is_array($link)) {
+          continue;
+        }
+        $walk((string) $full_name, (string) ($link['owner'] ?? explode('/', (string) $full_name)[0]), $link['relic'] ?? null, $link['nexus'] ?? null, $inner, $index === $children, $depth + 1);
+      }
+    };
+
+    Whisper::echo("{{nl}}{{bold}}Chain{{end}} from $root{{nl}}{{nl}}");
+    $walk($root, explode('/', $root)[0], null, null, '', true, 0);
+    Whisper::echo("{{nl}}{$total['reliquary']} reliquary(s), {$total['relic']} relic(s){{nl}}");
+    if ($self !== '' && !isset($seen[strtolower($self)])) {
+      hall_line('info', "$self is not on this chain yet: its parent maps it with php nexus update");
+    }
+  }
+);
+
+
+#sentinel-codex
+Chanter::end();
+Aether::end();
