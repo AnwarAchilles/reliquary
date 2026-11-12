@@ -1,7 +1,5 @@
 # Reliquary
 
-![Image Banner](https://raw.githubusercontent.com/devneet-id/.github/refs/heads/main/design/anwarachilles/reliquary/v1-banner.png)
-
 **Forged through Rune. Kept by its people.**
 
 A reliquary keeps no relic — it only remembers where each one rests, and the seal it bore when it was listed.
